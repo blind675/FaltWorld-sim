@@ -30,6 +30,8 @@ export function TerrainCanvas({ terrain, width, height }: TerrainCanvasProps) {
 
         if (cell.type === 'spring') {
           ctx.fillStyle = 'rgb(0, 0, 255)'; // Blue for springs
+        } else if (cell.type === 'river') {
+          ctx.fillStyle = 'rgb(0, 128, 255)'; // Light blue for rivers
         } else {
           // Map altitude to grayscale (0-255)
           // Map from [-200,2200] to [0,255]

@@ -60,6 +60,7 @@ class PerlinNoise {
 export interface IStorage {
   getTerrainData(): Promise<TerrainGrid>;
   generateTerrain(): Promise<TerrainGrid>;
+  landUpdate(): Promise<TerrainGrid>;
 }
 
 export class MemStorage implements IStorage {
@@ -100,6 +101,78 @@ export class MemStorage implements IStorage {
     return springs;
   }
 
+  private getNeighbors(x: number, y: number): { x: number; y: number; altitude: number }[] {
+    const neighbors: { x: number; y: number; altitude: number }[] = [];
+    const directions = [
+      [-1, 0], [1, 0], [0, -1], [0, 1],  // Orthogonal
+      [-1, -1], [-1, 1], [1, -1], [1, 1]  // Diagonal
+    ];
+
+    for (const [dx, dy] of directions) {
+      const newX = x + dx;
+      const newY = y + dy;
+
+      if (newX >= 0 && newX < this.terrain[0].length &&
+          newY >= 0 && newY < this.terrain.length) {
+        const cell = this.terrain[newY][newX];
+        neighbors.push({
+          x: newX,
+          y: newY,
+          altitude: cell.terrain_height + cell.water_height
+        });
+      }
+    }
+
+    return neighbors;
+  }
+
+  async landUpdate(): Promise<TerrainGrid> {
+    const GRID_SIZE = this.terrain.length;
+    if (GRID_SIZE === 0) return this.terrain;
+
+    // Create a temporary grid for the updates
+    const tempGrid: TerrainGrid = JSON.parse(JSON.stringify(this.terrain));
+
+    // Process water flow for springs and rivers
+    for (let y = 0; y < GRID_SIZE; y++) {
+      for (let x = 0; x < GRID_SIZE; x++) {
+        const cell = this.terrain[y][x];
+        if (cell.type !== 'spring' && cell.type !== 'river') continue;
+
+        // Decrease terrain height and water level
+        tempGrid[y][x].terrain_height = Math.max(cell.terrain_height - 0.01, -200);
+        tempGrid[y][x].water_height = Math.max(cell.water_height - 0.1, 0);
+
+        // Find lowest neighbor
+        const neighbors = this.getNeighbors(x, y);
+        const lowestNeighbor = neighbors.reduce((min, current) => 
+          current.altitude < min.altitude ? current : min
+        );
+
+        // Current cell's altitude
+        const currentAltitude = cell.terrain_height + cell.water_height;
+
+        // If neighbor is lower, water flows there
+        if (lowestNeighbor.altitude < currentAltitude) {
+          const targetCell = tempGrid[lowestNeighbor.y][lowestNeighbor.x];
+
+          if (targetCell.type === 'river') {
+            // Add water to existing river
+            targetCell.water_height += 1;
+          } else {
+            // Create new river
+            targetCell.type = 'river';
+            targetCell.water_height = 1;
+          }
+        }
+      }
+    }
+
+    // Update the terrain with the new values
+    this.terrain = tempGrid;
+    return this.terrain;
+  }
+
   async getTerrainData(): Promise<TerrainGrid> {
     return this.terrain;
   }
@@ -137,6 +210,8 @@ export class MemStorage implements IStorage {
     for (const spring of springs) {
       if (this.terrain[spring.y] && this.terrain[spring.y][spring.x]) {
         this.terrain[spring.y][spring.x].type = 'spring';
+        this.terrain[spring.y][spring.x].base_moisture = 1;
+        this.terrain[spring.y][spring.x].moisture = 1;
       }
     }
 

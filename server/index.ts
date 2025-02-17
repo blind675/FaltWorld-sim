@@ -21,7 +21,7 @@ function startPeriodicTask() {
   intervalId = setInterval(async () => {
     try {
       log('Running periodic terrain update');
-      await storage.generateTerrain();
+      await storage.landUpdate();
     } catch (error) {
       console.error('Error in periodic task:', error);
     }
