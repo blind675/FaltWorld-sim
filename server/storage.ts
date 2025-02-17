@@ -71,13 +71,42 @@ export class MemStorage implements IStorage {
     this.perlin = new PerlinNoise();
   }
 
+  private mapHeight(value: number): number {
+    // Map from [0,1] to [-200,2200]
+    return value * 2400 - 200;
+  }
+
+  private selectSpringPoints(): { x: number, y: number }[] {
+    const springs: { x: number, y: number }[] = [];
+    const candidates = [];
+
+    // Find all points with suitable height for springs
+    for (let y = 0; y < this.terrain.length; y++) {
+      for (let x = 0; x < this.terrain[0].length; x++) {
+        const height = this.terrain[y][x].terrain_height;
+        if (height >= 1700 && height <= 1900) {
+          candidates.push({ x, y });
+        }
+      }
+    }
+
+    // Randomly select 5 points from candidates
+    while (springs.length < 5 && candidates.length > 0) {
+      const idx = Math.floor(Math.random() * candidates.length);
+      springs.push(candidates[idx]);
+      candidates.splice(idx, 1);
+    }
+
+    return springs;
+  }
+
   async getTerrainData(): Promise<TerrainGrid> {
     return this.terrain;
   }
 
   async generateTerrain(): Promise<TerrainGrid> {
-    const GRID_SIZE = 500;
-    const NOISE_SCALE = 0.05;
+    const GRID_SIZE = 250;
+    const NOISE_SCALE = 0.04;
 
     // Initialize empty grid
     this.terrain = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(null));
@@ -85,20 +114,29 @@ export class MemStorage implements IStorage {
     for (let y = 0; y < GRID_SIZE; y++) {
       for (let x = 0; x < GRID_SIZE; x++) {
         const noiseVal = this.perlin.noise(x * NOISE_SCALE, y * NOISE_SCALE);
+        const mappedHeight = this.mapHeight(noiseVal);
 
         const cell: TerrainCell = {
           id: y * GRID_SIZE + x,
           x,
           y,
-          terrain_height: noiseVal,
+          terrain_height: mappedHeight,
           water_height: 0,
-          altitude: noiseVal, // Initially same as terrain_height
+          altitude: mappedHeight, // Initially same as terrain_height
           base_moisture: 0,
           moisture: 0,
           type: 'rock'
         };
 
         this.terrain[y][x] = cell;
+      }
+    }
+
+    // Select and mark spring points
+    const springs = this.selectSpringPoints();
+    for (const spring of springs) {
+      if (this.terrain[spring.y] && this.terrain[spring.y][spring.x]) {
+        this.terrain[spring.y][spring.x].type = 'spring';
       }
     }
 

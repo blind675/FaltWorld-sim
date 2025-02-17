@@ -28,9 +28,16 @@ export function TerrainCanvas({ terrain, width, height }: TerrainCanvasProps) {
         const cell = terrain[y][x];
         if (!cell) continue;
 
-        // Convert altitude to grayscale value (0-255)
-        const value = Math.floor(cell.altitude * 255);
-        ctx.fillStyle = `rgb(${value},${value},${value})`;
+        if (cell.type === 'spring') {
+          ctx.fillStyle = 'rgb(0, 0, 255)'; // Blue for springs
+        } else {
+          // Map altitude to grayscale (0-255)
+          // Map from [-200,2200] to [0,255]
+          const normalizedValue = (cell.altitude + 200) / 2400;
+          const value = Math.floor(normalizedValue * 255);
+          ctx.fillStyle = `rgb(${value},${value},${value})`;
+        }
+
         ctx.fillRect(
           x * cellWidth,
           y * cellHeight,
