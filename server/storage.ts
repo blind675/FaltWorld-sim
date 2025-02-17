@@ -1,0 +1,109 @@
+import { terrainCells, type TerrainCell, type InsertTerrainCell, type TerrainGrid } from "@shared/schema";
+
+// Simple implementation of Perlin noise for Node.js
+class PerlinNoise {
+  private perm: number[];
+
+  constructor() {
+    this.perm = new Array(512);
+    const permutation = new Array(256).fill(0)
+      .map((_, i) => i)
+      .sort(() => Math.random() - 0.5);
+
+    for (let i = 0; i < 512; i++) {
+      this.perm[i] = permutation[i & 255];
+    }
+  }
+
+  private fade(t: number): number {
+    return t * t * t * (t * (t * 6 - 15) + 10);
+  }
+
+  private lerp(t: number, a: number, b: number): number {
+    return a + t * (b - a);
+  }
+
+  private grad(hash: number, x: number, y: number): number {
+    const h = hash & 15;
+    const grad2 = 1 + (h & 7);
+    const u = h < 8 ? x : y;
+    const v = h < 4 ? y : x;
+    return ((h & 1) ? -u : u) + ((h & 2) ? -v : v);
+  }
+
+  noise(x: number, y: number): number {
+    const X = Math.floor(x) & 255;
+    const Y = Math.floor(y) & 255;
+
+    x -= Math.floor(x);
+    y -= Math.floor(y);
+
+    const u = this.fade(x);
+    const v = this.fade(y);
+
+    const A = this.perm[X] + Y;
+    const B = this.perm[X + 1] + Y;
+
+    return this.lerp(v,
+      this.lerp(u,
+        this.grad(this.perm[A], x, y),
+        this.grad(this.perm[B], x - 1, y)
+      ),
+      this.lerp(u,
+        this.grad(this.perm[A + 1], x, y - 1),
+        this.grad(this.perm[B + 1], x - 1, y - 1)
+      )
+    ) * 0.5 + 0.5;
+  }
+}
+
+export interface IStorage {
+  getTerrainData(): Promise<TerrainGrid>;
+  generateTerrain(): Promise<TerrainGrid>;
+}
+
+export class MemStorage implements IStorage {
+  private terrain: TerrainGrid;
+  private perlin: PerlinNoise;
+
+  constructor() {
+    this.terrain = [];
+    this.perlin = new PerlinNoise();
+  }
+
+  async getTerrainData(): Promise<TerrainGrid> {
+    return this.terrain;
+  }
+
+  async generateTerrain(): Promise<TerrainGrid> {
+    const GRID_SIZE = 500;
+    const NOISE_SCALE = 0.05;
+
+    // Initialize empty grid
+    this.terrain = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(null));
+
+    for (let y = 0; y < GRID_SIZE; y++) {
+      for (let x = 0; x < GRID_SIZE; x++) {
+        const noiseVal = this.perlin.noise(x * NOISE_SCALE, y * NOISE_SCALE);
+
+        const cell: TerrainCell = {
+          id: y * GRID_SIZE + x,
+          x,
+          y,
+          terrain_height: noiseVal,
+          water_height: 0,
+          altitude: noiseVal, // Initially same as terrain_height
+          base_moisture: 0,
+          moisture: 0,
+          type: 'rock'
+        };
+
+        this.terrain[y][x] = cell;
+      }
+    }
+
+    return this.terrain;
+  }
+}
+
+export const storage = new MemStorage();
