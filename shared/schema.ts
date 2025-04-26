@@ -9,6 +9,7 @@ export const terrainCells = pgTable("terrain_cells", {
   altitude: real("altitude").notNull(),
   terrain_height: real("terrain_height").notNull(),
   water_height: real("water_height").notNull(),
+  distance_from_water: real("distance_from_water").notNull(),
   base_moisture: real("base_moisture").notNull(),
   added_moisture: real("added_moisture").notNull(),
   moisture: real("moisture").notNull(),

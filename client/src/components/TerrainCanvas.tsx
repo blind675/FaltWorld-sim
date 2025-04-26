@@ -126,10 +126,8 @@ export function TerrainCanvas({
       // Dark brown for mud (high moisture) with gradient based on altitude
       const normalizedValue = (cell.altitude + 200) / 2400;
       // Apply height exaggeration
-      const adjustedValue = Math.min(
-        1,
-        normalizedValue * settings.exaggerateHeight,
-      );
+      const adjustedValue = 1 - normalizedValue * settings.exaggerateHeight;
+
       // For mud: Dark brown with height-based gradient (102-51-0 to 80-40-0)
       const r = Math.floor(102 - adjustedValue * 22);
       const g = Math.floor(51 - adjustedValue * 11);
@@ -139,10 +137,8 @@ export function TerrainCanvas({
       // Medium brown for earth (medium moisture) with gradient based on altitude
       const normalizedValue = (cell.altitude + 200) / 2400;
       // Apply height exaggeration
-      const adjustedValue = Math.min(
-        1,
-        normalizedValue * settings.exaggerateHeight,
-      );
+      const adjustedValue = 1 - normalizedValue * settings.exaggerateHeight;
+
       // For earth: Brown with height-based gradient (153-102-51 to 120-80-40)
       const r = Math.floor(153 - adjustedValue * 33);
       const g = Math.floor(102 - adjustedValue * 22);
@@ -381,13 +377,13 @@ export function TerrainCanvas({
           <div>
             Base Moisture:{" "}
             <span className="font-medium">
-              {hoveredCell.cell.base_moisture.toFixed(2)}
+              {hoveredCell.cell.base_moisture?.toFixed(2)}
             </span>
           </div>
           <div>
             Moisture:{" "}
             <span className="font-medium">
-              {hoveredCell.cell.moisture.toFixed(2)}
+              {hoveredCell.cell.moisture?.toFixed(2)}
             </span>
           </div>
         </div>

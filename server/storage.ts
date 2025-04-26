@@ -152,28 +152,6 @@ export class MemStorage implements IStorage {
       // If neighbor is lower, water flows there
       // if lowest neighbor is a river or spring, increase water level
       if (lowestNeighbor.type === "river" || lowestNeighbor.type === "spring") {
-        console.log(
-          "Neighbour: ",
-          lowestNeighbor.type,
-          " at ",
-          lowestNeighbor.x,
-          ",",
-          lowestNeighbor.y,
-          " with altitude ",
-          lowestNeighbor.altitude,
-        );
-
-        console.log(
-          "Me : ",
-          cell.type,
-          " at ",
-          cell.x,
-          ",",
-          cell.y,
-          " with altitude ",
-          cell.altitude,
-        );
-
         lowestNeighbor.water_height = lowestNeighbor.water_height + 0.5;
         lowestNeighbor.altitude =
           lowestNeighbor.terrain_height + lowestNeighbor.water_height;
@@ -185,115 +163,90 @@ export class MemStorage implements IStorage {
         lowestNeighbor.moisture = 1;
         lowestNeighbor.altitude =
           lowestNeighbor.terrain_height + lowestNeighbor.water_height;
+        lowestNeighbor.distance_from_water = 0;
 
         this.waterPoints.push(lowestNeighbor);
       }
     } else {
       cell.water_height = cell.water_height + 0.5;
       cell.altitude = cell.terrain_height + cell.water_height;
-
-      console.log(
-        "I'm the lowest point, increasing water level, I'm a: ",
-        cell.type,
-        " at ",
-        cell.x,
-        ",",
-        cell.y,
-        " with altitude ",
-        cell.altitude,
-        " and water height ",
-        cell.water_height,
-        " and terrain height ",
-        cell.terrain_height,
-      );
     }
 
     return true;
   }
 
-  private propagateMoisture(moistureGrid: TerrainGrid): void {
-    const baseDecay = 0.15;
-    const minGain = 0.00001;
-    const altInfluence = 0.001;
-    const neighborCoef = 0.01;
+  private propagateMoisture(): void {
+    // Constants
+    const MAX_LAND_MOISTURE = 0.9;
+    const MOISTURE_TRANSFER_RATE = 0.008; // base amount spread each tick
+    const BASE_DISTANCE_LOSS = 0.0001; // lose moisture per cell away
+    const ALTITUDE_PENALTY = 0.0001; // lose extra per altitude unit climbed
+    const BASE_DECAY = 0.85; // global evaporation (1% moisture lost per tick)
 
-    const directions = [
-      [0, -1],
-      [0, 1],
-      [-1, 0],
-      [1, 0],
-      [-1, -1],
-      [1, -1],
-      [-1, 1],
-      [1, 1],
-    ];
+    for (let y = 0; y < this.terrain.length; y++) {
+      for (let x = 0; x < this.terrain[0].length; x++) {
+        const currentCell = this.terrain[y][x];
+        if (currentCell.base_moisture === 0) continue;
 
-    const moistureQueue: TerrainCell[] = [];
+        for (let neighborCell of this.getNeighbors(
+          currentCell.x,
+          currentCell.y,
+        )) {
+          if (neighborCell.type === "sprin" || neighborCell.type === "river")
+            continue;
+          // 1. Calculate distance-based loss
+          let newDistance = currentCell.distance_from_water + 1; // +1 cell step
 
-    // Initialize queue with high moisture cells
-    for (let y = 0; y < MemStorage.GRID_SIZE; y++) {
-      for (let x = 0; x < MemStorage.GRID_SIZE; x++) {
-        if (moistureGrid[y][x].base_moisture > 0.0001) {
-          moistureQueue.push(moistureGrid[y][x]);
-        }
-      }
-    }
-
-    while (moistureQueue.length) {
-      const { x, y, moisture, altitude } = moistureQueue.shift()!;
-
-      // compute avg moisture of neighbors for dynamic decay
-      let sum = 0,
-        cnt = 0;
-      for (let [dx, dy] of directions) {
-        const nx = x + dx,
-          ny = y + dy;
-        if (
-          nx < 0 ||
-          nx >= MemStorage.GRID_SIZE ||
-          ny < 0 ||
-          ny >= MemStorage.GRID_SIZE
-        )
-          continue;
-        sum += moistureGrid[ny][nx].base_moisture;
-        cnt++;
-      }
-      const avgNeigh = cnt > 0 ? sum / cnt : 0;
-
-      // dynamic decay and resulting gain
-      const decay = Math.min(1, baseDecay + neighborCoef * avgNeigh);
-
-      const rawGain = moisture * decay;
-      if (rawGain <= minGain) continue;
-
-      for (const [dx, dy] of directions) {
-        const nx = x + dx;
-        const ny = y + dy;
-        if (
-          ny < 0 ||
-          ny >= MemStorage.GRID_SIZE ||
-          nx < 0 ||
-          nx >= MemStorage.GRID_SIZE
-        )
-          continue;
-
-        const altDiff = altitude - moistureGrid[ny][nx].altitude;
-        const altFactor = Math.max(0, 1 + altInfluence * altDiff);
-        const gain = rawGain * altFactor;
-
-        if (gain <= minGain) continue;
-
-        const cell = moistureGrid[ny][nx];
-        cell.base_moisture = cell.base_moisture + gain;
-        if (!(cell.type === "river" || cell.type === "spring")) {
-          cell.moisture = cell.base_moisture + cell.added_moisture;
-
-          if (cell.moisture > 0.75 && cell.moisture < 1) {
-            cell.type = "mud";
-          } else if (cell.moisture > 0.25 && cell.moisture <= 0.75) {
-            cell.type = "earth";
+          if (newDistance < neighborCell.distance_from_water) {
+            neighborCell.distance_from_water = newDistance;
           }
-          moistureQueue.push(cell);
+
+          let distanceLoss = newDistance * BASE_DISTANCE_LOSS;
+
+          // 2. Altitude penalty
+          let heightDiff = neighborCell.altitude - currentCell.altitude;
+          let altitudeLoss = heightDiff > 0 ? heightDiff * ALTITUDE_PENALTY : 0;
+
+          // 3. Total loss
+          let totalLoss = distanceLoss + altitudeLoss;
+
+          // 4. Final moisture gain attempt
+          let attemptedGain = MOISTURE_TRANSFER_RATE - totalLoss;
+
+          if (attemptedGain > 0) {
+            let newMoisture = Math.min(
+              neighborCell.base_moisture + attemptedGain,
+              MAX_LAND_MOISTURE,
+            );
+            if (newMoisture > neighborCell.base_moisture) {
+              neighborCell.base_moisture = newMoisture;
+              neighborCell.moisture = newMoisture;
+
+              if (neighborCell.moisture === 1) {
+                neighborCell.type = "river";
+                this.waterPoints.push(neighborCell);
+              } else if (
+                neighborCell.moisture > 0.75 &&
+                neighborCell.moisture < 1
+              ) {
+                neighborCell.type = "mud";
+              } else if (
+                neighborCell.moisture > 0.25 &&
+                neighborCell.moisture <= 0.75
+              ) {
+                neighborCell.type = "earth";
+              }
+            }
+          }
+        }
+
+        if (!(currentCell.type === "sprin" || currentCell.type === "river")) {
+          currentCell.base_moisture *= BASE_DECAY;
+          currentCell.moisture = currentCell.base_moisture;
+          if (currentCell.base_moisture < 0.000001) {
+            currentCell.base_moisture = 0;
+            currentCell.moisture = 0;
+          }
         }
       }
     }
@@ -301,10 +254,7 @@ export class MemStorage implements IStorage {
 
   async landUpdate() {
     // Calculate moisture propagation
-    const moistureGrid: TerrainGrid = JSON.parse(JSON.stringify(this.terrain));
-    this.propagateMoisture(moistureGrid);
-
-    this.terrain = moistureGrid;
+    this.propagateMoisture();
 
     let processedWatter = false;
     // Process water flow
@@ -382,6 +332,7 @@ export class MemStorage implements IStorage {
           added_moisture: 0,
           moisture: 0,
           type: "rock",
+          distance_from_water: Infinity,
         };
 
         this.terrain[y][x] = cell;
@@ -399,6 +350,9 @@ export class MemStorage implements IStorage {
         cell.base_moisture = 1;
         cell.added_moisture = 0;
         cell.moisture = 1;
+        cell.water_height = 1;
+        cell.altitude = cell.terrain_height + cell.water_height;
+        cell.distance_from_water = 0;
 
         this.waterPoints.push(cell);
       }
