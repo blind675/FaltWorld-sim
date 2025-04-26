@@ -200,9 +200,9 @@ export class MemStorage implements IStorage {
           ) {
             // Add water to existing river
             targetCell.water_height += 1;
-            console.log(
-              `INCREASE  - ${targetCell.x}, ${targetCell.y} water height: ${targetCell.water_height.toFixed(2)}, altitude: ${targetCell.altitude.toFixed(2)}`,
-            );
+            // console.log(
+            //   `INCREASE  - ${targetCell.x}, ${targetCell.y} water height: ${targetCell.water_height.toFixed(2)}, altitude: ${targetCell.altitude.toFixed(2)}`,
+            // );
           } else {
             // Create new river
             targetCell.type = "river";
@@ -210,83 +210,90 @@ export class MemStorage implements IStorage {
             targetCell.base_moisture = 1;
             targetCell.added_moisture = 0;
             targetCell.moisture = 1;
-            console.log(
-              `NEW RIVER - ${targetCell.x}, ${targetCell.y} water height: ${targetCell.water_height.toFixed(2)}, altitude: ${targetCell.altitude.toFixed(2)}`,
-            );
+            // console.log(
+            //   `NEW RIVER - ${targetCell.x}, ${targetCell.y} water height: ${targetCell.water_height.toFixed(2)}, altitude: ${targetCell.altitude.toFixed(2)}`,
+            // );
           }
         }
       }
     }
 
+    const decay = 0.25;
+    const minGain = 0.001;
+    const altInfluence = 0.01;
+
     // Calculate moisture propagation (create another temporary array to avoid spreading moisture too quickly)
     const moistureGrid: TerrainGrid = JSON.parse(JSON.stringify(tempGrid));
-    
+
+    const directions = [
+      [0, -1],
+      [0, 1],
+      [-1, 0],
+      [1, 0],
+      [-1, -1],
+      [1, -1],
+      [-1, 1],
+      [1, 1],
+    ];
+
+    const moistureQueue: { x: number; y: number; moisture: number }[] = [];
     // First, propagate moisture from cells with moisture > 0.0001
     for (let y = 0; y < GRID_SIZE; y++) {
       for (let x = 0; x < GRID_SIZE; x++) {
-        const cell = tempGrid[y][x];
-        
-        // Skip cells with negligible moisture
-        if (cell.base_moisture <= 0.0001) continue;
-        
-        // Get all neighbors
-        const directions = [
-          [0, -1], // North
-          [0, 1],  // South
-          [-1, 0], // West
-          [1, 0],  // East
-          [-1, -1], // Northwest
-          [1, -1],  // Northeast
-          [-1, 1],  // Southwest
-          [1, 1],   // Southeast
-        ];
-        
-        // Calculate moisture to spread to each neighbor (1/3 of cell's moisture)
-        const moistureToSpread = cell.base_moisture / 3;
-        
-        // Spread moisture to neighboring cells
-        for (const [dx, dy] of directions) {
-          const newX = x + dx;
-          const newY = y + dy;
-          
-          // Check if the neighbor is within grid bounds
-          if (
-            newX >= 0 &&
-            newX < GRID_SIZE &&
-            newY >= 0 &&
-            newY < GRID_SIZE
-          ) {
-            // Add moisture to the neighbor
-            moistureGrid[newY][newX].added_moisture += moistureToSpread;
-          }
+        if (tempGrid[y][x].base_moisture > 0.0001) {
+          moistureQueue.push({ x, y, moisture: tempGrid[y][x].base_moisture });
         }
       }
     }
-    
-    // Update moisture levels and cell types
-    for (let y = 0; y < GRID_SIZE; y++) {
-      for (let x = 0; x < GRID_SIZE; x++) {
-        const cell = moistureGrid[y][x];
-        
-        // Don't change already wet cells (river, spring)
-        if (cell.type === "river" || cell.type === "spring") continue;
-        
-        // Calculate total moisture (base + added)
-        cell.moisture = cell.base_moisture + cell.added_moisture;
-        
-        // Transfer added moisture to base moisture for next cycle
-        cell.base_moisture = cell.moisture;
-        cell.added_moisture = 0;
-        
-        // Update cell type based on moisture level
-        if (cell.moisture > 0.75 && cell.moisture < 1) {
-          // High moisture - mud
-          cell.type = "mud";
-          console.log(`MUD      - ${x}, ${y} moisture: ${cell.moisture.toFixed(2)}`);
-        } else if (cell.moisture > 0.25 && cell.moisture <= 0.75) {
-          // Medium moisture - earth
-          cell.type = "earth";
-          console.log(`EARTH    - ${x}, ${y} moisture: ${cell.moisture.toFixed(2)}`);
+
+    // 4) Process queue: each time a cell’s moisture goes up, it pushes to its neighbours
+    while (moistureQueue.length) {
+      const { x, y, moisture } = moistureQueue.shift()!;
+      const baseAlt = moistureGrid[y][x].altitude;
+
+      // compute how much this cell passes on
+      const rawGain = moisture * decay;
+      if (rawGain <= minGain) continue;
+
+      for (const [dx, dy] of directions) {
+        const nx = x + dx;
+        const ny = y + dy;
+        // skip out of bounds
+        if (ny < 0 || ny >= GRID_SIZE || nx < 0 || nx >= GRID_SIZE) continue;
+
+        // altitude factor: >1 downhill, <1 uphill, clamped ≥ 0
+        const altDiff = baseAlt - moistureGrid[ny][nx].altitude;
+        const altFactor = Math.max(0, 1 + altInfluence * altDiff);
+
+        const gain = rawGain * altFactor;
+        if (gain <= minGain) continue;
+
+        const cell = moistureGrid[ny][nx];
+
+        // if this contribution beats the neighbour’s current moisture, update + re-enqueue
+        if (gain > cell.base_moisture) {
+          cell.base_moisture = +gain;
+          // Don't change already wet cells (river, spring)
+          if (cell.type === "river" || cell.type === "spring") continue;
+
+          // Calculate total moisture (base + added)
+          cell.moisture = cell.base_moisture + cell.added_moisture;
+
+          // Update cell type based on moisture level
+          if (cell.moisture > 0.75 && cell.moisture < 1) {
+            // High moisture - mud
+            cell.type = "mud";
+            console.log(
+              `MUD      - ${x}, ${y} moisture: ${cell.moisture.toFixed(2)}`,
+            );
+          } else if (cell.moisture > 0.25 && cell.moisture <= 0.75) {
+            // Medium moisture - earth
+            cell.type = "earth";
+            // console.log(
+            //   `EARTH    - ${x}, ${y} moisture: ${cell.moisture.toFixed(2)}`,
+            // );
+          }
+          moistureQueue.push({ x: nx, y: ny, moisture: gain });
         }
       }
     }
@@ -301,8 +308,8 @@ export class MemStorage implements IStorage {
   }
 
   async generateTerrain(): Promise<TerrainGrid> {
-    const GRID_SIZE = 250;
-    const NOISE_SCALE = 0.05;
+    const GRID_SIZE = 150;
+    const NOISE_SCALE = 0.04;
 
     // Initialize empty grid
     this.terrain = Array(GRID_SIZE)

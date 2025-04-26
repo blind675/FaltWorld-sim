@@ -121,7 +121,7 @@ export default function Home() {
                     <span>River (Low Water)</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-[rgb(0,64,192)]"></div>
+                    <div className="w-4 h-4 bg-[rgb(0,100,200)]"></div>
                     <span>River (High Water)</span>
                   </div>
                   <div className="flex items-center gap-2">

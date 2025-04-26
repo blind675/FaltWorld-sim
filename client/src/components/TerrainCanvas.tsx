@@ -44,7 +44,7 @@ export function TerrainCanvas({ terrain, width, height }: TerrainCanvasProps) {
         } else if (cell.type === "river") {
           // Different blue shades based on water height
           if (cell.water_height >= 1) {
-            ctx.fillStyle = "rgb(0, 64, 192)"; // Darker blue for deeper rivers
+            ctx.fillStyle = "rgb(0, 100, 200)"; // Darker blue for deeper rivers
           } else {
             ctx.fillStyle = "rgb(0, 128, 255)"; // Light blue for shallow rivers
           }
