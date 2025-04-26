@@ -8,7 +8,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // Set up periodic task
-const INTERVAL = 15000; // 15 seconds in milliseconds
+const INTERVAL = 10000; // 10 seconds in milliseconds
 let intervalId: NodeJS.Timeout;
 
 function startPeriodicTask() {
@@ -20,11 +20,10 @@ function startPeriodicTask() {
   // Set up new interval
   intervalId = setInterval(async () => {
     try {
-      log("Running periodic server-side terrain update");
+      log("Running periodic terrain update");
       await storage.landUpdate();
-      log("Server-side terrain update completed");
     } catch (error) {
-      console.error("Error in periodic terrain update task:", error);
+      console.error("Error in periodic task:", error);
     }
   }, INTERVAL);
 }
@@ -44,15 +43,8 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
 
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      // log(logLine);
+      log(logLine);
     }
   });
 

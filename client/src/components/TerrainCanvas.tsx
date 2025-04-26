@@ -5,6 +5,7 @@ interface TerrainCanvasProps {
   terrain: TerrainGrid;
   width: number;
   height: number;
+  onCellSelect?: (cellInfo: CellInfo | null) => void;
 }
 
 interface CellInfo {
@@ -15,9 +16,10 @@ interface CellInfo {
   screenY: number;
 }
 
-export function TerrainCanvas({ terrain, width, height }: TerrainCanvasProps) {
+export function TerrainCanvas({ terrain, width, height, onCellSelect }: TerrainCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hoveredCell, setHoveredCell] = useState<CellInfo | null>(null);
+  const [selectedCell, setSelectedCell] = useState<CellInfo | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
   // Draw the terrain grid
@@ -80,6 +82,13 @@ export function TerrainCanvas({ terrain, width, height }: TerrainCanvasProps) {
           cellHeight + 1,
         );
 
+        // Highlight the selected cell with a golden border (drawn first to be under hover)
+        if (selectedCell && selectedCell.x === x && selectedCell.y === y) {
+          ctx.strokeStyle = "gold";
+          ctx.lineWidth = 3;
+          ctx.strokeRect(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
+        }
+
         // Highlight the hovered cell with a white border
         if (hoveredCell && hoveredCell.x === x && hoveredCell.y === y) {
           ctx.strokeStyle = "white";
@@ -88,7 +97,7 @@ export function TerrainCanvas({ terrain, width, height }: TerrainCanvasProps) {
         }
       }
     }
-  }, [terrain, width, height, hoveredCell]);
+  }, [terrain, width, height, hoveredCell, selectedCell]);
 
   // Mouse move handler to determine hovered cell
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -132,6 +141,50 @@ export function TerrainCanvas({ terrain, width, height }: TerrainCanvasProps) {
     setHoveredCell(null);
   };
 
+  // Mouse click handler to select a cell
+  const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current || !terrain.length) return;
+
+    // Get canvas position and mouse coordinates
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    // Calculate cell coordinates
+    const gridSize = terrain.length;
+    const cellWidth = width / gridSize;
+    const cellHeight = height / gridSize;
+
+    const cellX = Math.floor(mouseX / cellWidth);
+    const cellY = Math.floor(mouseY / cellHeight);
+
+    // Check if coordinates are within bounds
+    if (cellX >= 0 && cellX < gridSize && cellY >= 0 && cellY < gridSize) {
+      const cell = terrain[cellY][cellX];
+      if (cell) {
+        const cellInfo = {
+          cell,
+          x: cellX,
+          y: cellY,
+          screenX: mouseX,
+          screenY: mouseY,
+        };
+        
+        // Toggle selection - if clicking on the same cell, deselect it
+        if (selectedCell && selectedCell.x === cellX && selectedCell.y === cellY) {
+          setSelectedCell(null);
+          // Notify parent component if callback is provided
+          if (onCellSelect) onCellSelect(null);
+        } else {
+          setSelectedCell(cellInfo);
+          // Notify parent component if callback is provided
+          if (onCellSelect) onCellSelect(cellInfo);
+        }
+      }
+    }
+  };
+
   return (
     <div className="relative">
       <canvas
@@ -141,6 +194,7 @@ export function TerrainCanvas({ terrain, width, height }: TerrainCanvasProps) {
         className="border border-border rounded-lg"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
+        onClick={handleClick}
       />
 
       {/* Cell information popup */}

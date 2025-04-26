@@ -10,13 +10,23 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { useEffect, useState, useCallback } from "react";
-import { type TerrainGrid } from "@shared/schema";
+import { type TerrainGrid, type TerrainCell } from "@shared/schema";
 import { RefreshCw } from "lucide-react";
+
+// Define CellInfo type for selected cell
+type CellInfo = {
+  cell: TerrainCell;
+  x: number;
+  y: number;
+  screenX: number;
+  screenY: number;
+};
 
 export default function Home() {
   const [refreshInterval, setRefreshInterval] = useState(15); // 15 seconds to match server interval
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [timeUntilRefresh, setTimeUntilRefresh] = useState(refreshInterval);
+  const [selectedCell, setSelectedCell] = useState<CellInfo | null>(null);
 
   const {
     data: terrain,
@@ -32,11 +42,11 @@ export default function Home() {
   const handleManualRefresh = useCallback(async () => {
     // Manually fetch new data from backend
     await refetch();
-    
+
     // Reset timers
     setLastRefresh(new Date());
     setTimeUntilRefresh(refreshInterval);
-    
+
     console.log("Map manually refreshed");
   }, [refetch, refreshInterval]);
 
@@ -107,7 +117,12 @@ export default function Home() {
         {/* Terrain Canvas */}
         <div className="flex-shrink-0">
           {terrain && (
-            <TerrainCanvas terrain={terrain} width={800} height={800} />
+            <TerrainCanvas 
+              terrain={terrain} 
+              width={800} 
+              height={800} 
+              onCellSelect={setSelectedCell}
+            />
           )}
         </div>
 
@@ -123,8 +138,8 @@ export default function Home() {
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-4">
                 <Button onClick={handleRegenerate}>Regenerate Terrain</Button>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={async () => {
                     try {
                       // First trigger a landUpdate on the server
@@ -144,6 +159,35 @@ export default function Home() {
                   Auto-refresh every {refreshInterval} seconds
                 </div>
               </div>
+
+              {/* Selected Cell Information */}
+              {selectedCell && (
+                <div className="mt-4 p-4 border border-gold rounded-lg bg-background/50">
+                  <h3 className="text-lg font-medium mb-2 text-gold">Selected Cell Information</h3>
+                  <div className="grid grid-cols-2 gap-y-2 text-sm">
+                    <div className="font-semibold">Position:</div>
+                    <div>({selectedCell.x}, {selectedCell.y})</div>
+                    
+                    <div className="font-semibold">Type:</div>
+                    <div className="capitalize">{selectedCell.cell.type}</div>
+                    
+                    <div className="font-semibold">Altitude:</div>
+                    <div>{selectedCell.cell.altitude.toFixed(2)}</div>
+                    
+                    <div className="font-semibold">Terrain Height:</div>
+                    <div>{selectedCell.cell.terrain_height.toFixed(2)}</div>
+                    
+                    <div className="font-semibold">Water Height:</div>
+                    <div>{selectedCell.cell.water_height.toFixed(2)}</div>
+                    
+                    <div className="font-semibold">Base Moisture:</div>
+                    <div>{selectedCell.cell.base_moisture.toFixed(2)}</div>
+                    
+                    <div className="font-semibold">Moisture:</div>
+                    <div>{selectedCell.cell.moisture.toFixed(2)}</div>
+                  </div>
+                </div>
+              )}
 
               <div className="mt-4">
                 <h3 className="text-lg font-medium mb-2">Map Information</h3>

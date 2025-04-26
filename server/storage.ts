@@ -232,16 +232,16 @@ export class MemStorage implements IStorage {
         const cell = moistureGrid[ny][nx];
         if (gain > cell.base_moisture) {
           cell.base_moisture = cell.base_moisture + gain;
-          if (cell.type === "river" || cell.type === "spring") return;
+          if (!(cell.type === "river" || cell.type === "spring")) {
+            cell.moisture = cell.base_moisture + cell.added_moisture;
 
-          cell.moisture = cell.base_moisture + cell.added_moisture;
-
-          if (cell.moisture > 0.75 && cell.moisture < 1) {
-            cell.type = "mud";
-          } else if (cell.moisture > 0.25 && cell.moisture <= 0.75) {
-            cell.type = "earth";
+            if (cell.moisture > 0.75 && cell.moisture < 1) {
+              cell.type = "mud";
+            } else if (cell.moisture > 0.25 && cell.moisture <= 0.75) {
+              cell.type = "earth";
+            }
+            moistureQueue.push(cell);
           }
-          moistureQueue.push(cell);
         }
       }
     }
