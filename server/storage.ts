@@ -71,17 +71,10 @@ export interface IStorage {
   landUpdate(): Promise<TerrainGrid>;
 }
 
-interface WaterPoint {
-  x: number;
-  y: number;
-  type: "spring" | "river";
-  water_height: number;
-}
-
 export class MemStorage implements IStorage {
   private terrain: TerrainGrid;
   private perlin: PerlinNoise;
-  private waterPoints: WaterPoint[];
+  private waterPoints: TerrainCell[];
 
   constructor() {
     this.terrain = [];
@@ -169,12 +162,7 @@ export class MemStorage implements IStorage {
     cell.moisture = 1;
     cell.altitude = cell.terrain_height + cell.water_height;
 
-    this.waterPoints.push({
-      x: cell.x,
-      y: cell.y,
-      type: "river",
-      water_height: cell.water_height
-    });
+    this.waterPoints.push(cell);
 
     console.log(
       `NEW RIVER - ${cell.x}, ${cell.y} water height: ${cell.water_height.toFixed(2)}, altitude: ${cell.altitude.toFixed(2)}`,
@@ -261,13 +249,8 @@ export class MemStorage implements IStorage {
     const tempGrid: TerrainGrid = JSON.parse(JSON.stringify(this.terrain));
 
     // Process water flow
-    for (let y = 0; y < GRID_SIZE; y++) {
-      for (let x = 0; x < GRID_SIZE; x++) {
-        const cell = this.terrain[y][x];
-        if (cell.type === "spring" || cell.type === "river") {
-          this.processWaterFlow(cell, tempGrid);
-        }
-      }
+    for (const cell of this.waterPoints) {
+      this.processWaterFlow(cell, tempGrid);
     }
 
     // Calculate moisture propagation
@@ -308,7 +291,7 @@ export class MemStorage implements IStorage {
 
   async generateTerrain(): Promise<TerrainGrid> {
     const GRID_SIZE = 100;
-    const NOISE_SCALE = 0.03;
+    const NOISE_SCALE = 0.05;
 
     // Initialize empty grid
     this.terrain = Array(GRID_SIZE)
@@ -340,7 +323,7 @@ export class MemStorage implements IStorage {
     // Select and mark spring points
     const springs = this.selectSpringPoints();
     this.waterPoints = []; // Reset water points on new terrain generation
-    
+
     for (const spring of springs) {
       if (this.terrain[spring.y] && this.terrain[spring.y][spring.x]) {
         const cell = this.terrain[spring.y][spring.x];
@@ -348,13 +331,8 @@ export class MemStorage implements IStorage {
         cell.base_moisture = 1;
         cell.added_moisture = 0;
         cell.moisture = 1;
-        
-        this.waterPoints.push({
-          x: spring.x,
-          y: spring.y,
-          type: "spring",
-          water_height: 0
-        });
+
+        this.waterPoints.push(cell);
       }
     }
 
