@@ -62,6 +62,8 @@ export default function Home() {
       contourInterval: 100,
       colorMode: "default",
       wireframe: false,
+      zoomLevel: 1.0,
+      panOffset: { x: 0, y: 0 },
     });
 
   const {
@@ -158,6 +160,12 @@ export default function Home() {
               height={800}
               onCellSelect={setSelectedCell}
               visualizationSettings={visualizationSettings}
+              onVisualizationSettingsChange={(settings) => {
+                setVisualizationSettings({
+                  ...visualizationSettings,
+                  ...settings
+                });
+              }}
             />
           )}
         </div>
@@ -319,6 +327,61 @@ export default function Home() {
                               });
                             }}
                           />
+                        </div>
+                      </div>
+                      
+                      <Separator />
+                      
+                      {/* Map Navigation Controls */}
+                      <div className="space-y-4">
+                        <h4 className="text-sm font-medium mb-2">Map Navigation</h4>
+                        
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <Label
+                              htmlFor="zoom-level"
+                              className="text-sm font-medium"
+                            >
+                              <svg className="h-4 w-4 inline-block mr-1" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                <line x1="11" y1="8" x2="11" y2="14"></line>
+                                <line x1="8" y1="11" x2="14" y2="11"></line>
+                              </svg>
+                              Zoom Level: {visualizationSettings.zoomLevel.toFixed(1)}x
+                            </Label>
+                          </div>
+                          <Slider
+                            id="zoom-level"
+                            min={0.5}
+                            max={3}
+                            step={0.1}
+                            value={[visualizationSettings.zoomLevel]}
+                            onValueChange={(value) => {
+                              setVisualizationSettings({
+                                ...visualizationSettings,
+                                zoomLevel: value[0],
+                              });
+                            }}
+                          />
+                        </div>
+                        
+                        <div className="text-sm text-muted-foreground mt-1">
+                          <p>You can zoom with the mouse wheel and pan with middle/right click drag.</p>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="mt-2"
+                            onClick={() => {
+                              setVisualizationSettings({
+                                ...visualizationSettings,
+                                zoomLevel: 1.0,
+                                panOffset: { x: 0, y: 0 }
+                              });
+                            }}
+                          >
+                            Reset View
+                          </Button>
                         </div>
                       </div>
                     </div>
