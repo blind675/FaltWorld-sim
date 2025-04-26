@@ -46,7 +46,7 @@ type CellInfo = {
 };
 
 export default function Home() {
-  const [refreshInterval, setRefreshInterval] = useState(15); // 15 seconds to match server interval
+  const [refreshInterval, setRefreshInterval] = useState(20); // 20 seconds to match server interval
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [timeUntilRefresh, setTimeUntilRefresh] = useState(refreshInterval);
   const [selectedCell, setSelectedCell] = useState<CellInfo | null>(null);
@@ -145,18 +145,6 @@ export default function Home() {
       </div>
     );
   }
-
-  // a funtion to find all the river and spring terren types and log them
-  const findRiversAndSprings = (terrain?: TerrainGrid) => {
-    if (!terrain) return;
-    const riversAndSprings = terrain
-      .flat()
-      .filter((cell) => cell.type === "river" || cell.type === "spring");
-
-    console.log(`found ${riversAndSprings.length} rivers and springs`);
-  };
-
-  findRiversAndSprings(terrain);
 
   return (
     <div className="container mx-auto p-4 min-h-screen">

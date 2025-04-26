@@ -8,7 +8,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // Set up periodic task
-const INTERVAL = 10000; // 10 seconds in milliseconds
+const INTERVAL = 10; // 10 seconds in milliseconds
 let intervalId: NodeJS.Timeout;
 
 function startPeriodicTask() {
@@ -37,14 +37,14 @@ app.use((req, res, next) => {
     return originalResJson.apply(res, [bodyJson, ...args]);
   };
 
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+  // res.on("finish", () => {
+  //   const duration = Date.now() - start;
+  //   if (path.startsWith("/api")) {
+  //     let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
 
-      log(logLine);
-    }
-  });
+  //     log(logLine);
+  //   }
+  // });
 
   next();
 });

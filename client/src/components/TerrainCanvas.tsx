@@ -9,7 +9,7 @@ export interface VisualizationSettings {
   exaggerateHeight: number; // 1.0 is normal, higher values exaggerate the height differences
   contourLines: boolean;
   contourInterval: number; // Interval for contour lines
-  colorMode: 'default' | 'heightmap' | 'moisture' | 'temperature';
+  colorMode: "default" | "heightmap" | "moisture" | "temperature";
   wireframe: boolean;
 }
 
@@ -29,12 +29,12 @@ interface CellInfo {
   screenY: number;
 }
 
-export function TerrainCanvas({ 
-  terrain, 
-  width, 
-  height, 
+export function TerrainCanvas({
+  terrain,
+  width,
+  height,
   onCellSelect,
-  visualizationSettings = {} 
+  visualizationSettings = {},
 }: TerrainCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hoveredCell, setHoveredCell] = useState<CellInfo | null>(null);
@@ -49,20 +49,26 @@ export function TerrainCanvas({
     exaggerateHeight: 1.0,
     contourLines: false,
     contourInterval: 100,
-    colorMode: 'default',
-    wireframe: false
+    colorMode: "default",
+    wireframe: false,
   };
 
   // Merge default settings with provided settings
-  const settings: VisualizationSettings = { ...defaultSettings, ...visualizationSettings };
+  const settings: VisualizationSettings = {
+    ...defaultSettings,
+    ...visualizationSettings,
+  };
 
   // Helper function to get cell color based on visualization settings
   const getCellColor = (cell: TerrainCell) => {
     // If we're using heightmap mode, only show elevation
-    if (settings.colorMode === 'heightmap') {
+    if (settings.colorMode === "heightmap") {
       const normalizedValue = (cell.altitude + 200) / 2400;
       // Adjust height exaggeration factor
-      const adjustedValue = Math.min(1, normalizedValue * settings.exaggerateHeight);
+      const adjustedValue = Math.min(
+        1,
+        normalizedValue * settings.exaggerateHeight,
+      );
       // Use a blue-to-white-to-brown gradient for heightmap
       if (adjustedValue < 0.5) {
         // Blue (0,0,255) to white (255,255,255)
@@ -80,9 +86,9 @@ export function TerrainCanvas({
         return `rgb(${r}, ${g}, ${b})`;
       }
     }
-    
+
     // If we're using moisture mode, only show moisture
-    if (settings.colorMode === 'moisture') {
+    if (settings.colorMode === "moisture") {
       // Use blue gradient for moisture
       const moistureValue = cell.moisture;
       // Blue gradient from white (dry) to dark blue (wet)
@@ -91,27 +97,27 @@ export function TerrainCanvas({
       const r = Math.floor(255 * (1 - moistureValue));
       return `rgb(${r}, ${g}, ${b})`;
     }
-    
+
     // If we're using temperature mode (estimated based on altitude)
-    if (settings.colorMode === 'temperature') {
+    if (settings.colorMode === "temperature") {
       // Approximate temperature based on altitude (higher = colder)
       const normalizedAltitude = (cell.altitude + 200) / 2400;
       // Inverse for temperature (higher altitude = lower temp)
       const temperature = 1 - normalizedAltitude * settings.exaggerateHeight;
-      
+
       // Red (hot) to blue (cold) gradient
       const r = Math.floor(255 * temperature);
       const g = Math.floor(100 * temperature);
       const b = Math.floor(255 * (1 - temperature));
       return `rgb(${r}, ${g}, ${b})`;
     }
-    
+
     // Default visualization mode (original logic)
     if (cell.type === "spring" && settings.showRivers) {
       return "rgb(0, 0, 255)"; // Blue for springs
     } else if (cell.type === "river" && settings.showRivers) {
       // Different blue shades based on water height
-      if (cell.water_height >= 1) {
+      if (cell.water_height >= 2) {
         return "rgb(0, 64, 192)"; // Darker blue for deeper rivers
       } else {
         return "rgb(0, 128, 255)"; // Light blue for shallow rivers
@@ -120,7 +126,10 @@ export function TerrainCanvas({
       // Dark brown for mud (high moisture) with gradient based on altitude
       const normalizedValue = (cell.altitude + 200) / 2400;
       // Apply height exaggeration
-      const adjustedValue = Math.min(1, normalizedValue * settings.exaggerateHeight);
+      const adjustedValue = Math.min(
+        1,
+        normalizedValue * settings.exaggerateHeight,
+      );
       // For mud: Dark brown with height-based gradient (102-51-0 to 80-40-0)
       const r = Math.floor(102 - adjustedValue * 22);
       const g = Math.floor(51 - adjustedValue * 11);
@@ -130,7 +139,10 @@ export function TerrainCanvas({
       // Medium brown for earth (medium moisture) with gradient based on altitude
       const normalizedValue = (cell.altitude + 200) / 2400;
       // Apply height exaggeration
-      const adjustedValue = Math.min(1, normalizedValue * settings.exaggerateHeight);
+      const adjustedValue = Math.min(
+        1,
+        normalizedValue * settings.exaggerateHeight,
+      );
       // For earth: Brown with height-based gradient (153-102-51 to 120-80-40)
       const r = Math.floor(153 - adjustedValue * 33);
       const g = Math.floor(102 - adjustedValue * 22);
@@ -141,7 +153,10 @@ export function TerrainCanvas({
       // Map from [-200,2200] to [0,255]
       const normalizedValue = (cell.altitude + 200) / 2400;
       // Apply height exaggeration
-      const adjustedValue = Math.min(1, normalizedValue * settings.exaggerateHeight);
+      const adjustedValue = Math.min(
+        1,
+        normalizedValue * settings.exaggerateHeight,
+      );
       // Inverse the value (255-value) to make high values darker
       const value = Math.floor(255 - adjustedValue * 255);
       return `rgb(${value},${value},${value})`;
@@ -180,21 +195,29 @@ export function TerrainCanvas({
           cellWidth + 1, // Add 1 to prevent gaps
           cellHeight + 1,
         );
-        
+
         // Draw contour lines if enabled
         if (settings.contourLines && settings.showElevation) {
           // Get the altitude adjusted with the contour interval
           const altitude = cell.altitude;
           const interval = settings.contourInterval;
-          
+
           // Check if this cell is on a contour line
-          if (Math.round(altitude / interval) * interval === Math.round(altitude)) {
+          if (
+            Math.round(altitude / interval) * interval ===
+            Math.round(altitude)
+          ) {
             ctx.strokeStyle = "rgba(0,0,0,0.5)";
             ctx.lineWidth = 0.5;
-            ctx.strokeRect(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
+            ctx.strokeRect(
+              x * cellWidth,
+              y * cellHeight,
+              cellWidth,
+              cellHeight,
+            );
           }
         }
-        
+
         // Draw wireframe if enabled
         if (settings.wireframe) {
           ctx.strokeStyle = "rgba(0,0,0,0.2)";
@@ -290,9 +313,13 @@ export function TerrainCanvas({
           screenX: mouseX,
           screenY: mouseY,
         };
-        
+
         // Toggle selection - if clicking on the same cell, deselect it
-        if (selectedCell && selectedCell.x === cellX && selectedCell.y === cellY) {
+        if (
+          selectedCell &&
+          selectedCell.x === cellX &&
+          selectedCell.y === cellY
+        ) {
           setSelectedCell(null);
           // Notify parent component if callback is provided
           if (onCellSelect) onCellSelect(null);

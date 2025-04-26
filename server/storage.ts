@@ -121,7 +121,7 @@ export class MemStorage implements IStorage {
     return neighbors;
   }
 
-  private processWaterFlow(cell: TerrainCell): void {
+  private processWaterFlow(cell: TerrainCell): boolean {
     // Decrease terrain height and water level
     cell.terrain_height = Math.max(cell.terrain_height - 0.0001, -200);
     // evalopration
@@ -136,18 +136,44 @@ export class MemStorage implements IStorage {
     );
 
     // if this cell has two river neighbours or one sping or one river skip it
-    if (neighbors.filter((n) => n.type === "river").length >= 2) {
-      return;
+    if (
+      neighbors.filter((n) => n.type === "river" || n.type === "spring")
+        .length >= 2 &&
+      (lowestNeighbor.type === "spring" || lowestNeighbor.type === "river")
+    ) {
+      return false;
     }
 
     if (cell.type === "spring" && lowestNeighbor.type === "river") {
-      return;
+      return false;
     }
 
-    if (lowestNeighbor.altitude < cell.altitude) {
+    if (Math.round(lowestNeighbor.altitude) < Math.round(cell.altitude)) {
       // If neighbor is lower, water flows there
       // if lowest neighbor is a river or spring, increase water level
       if (lowestNeighbor.type === "river" || lowestNeighbor.type === "spring") {
+        console.log(
+          "Neighbour: ",
+          lowestNeighbor.type,
+          " at ",
+          lowestNeighbor.x,
+          ",",
+          lowestNeighbor.y,
+          " with altitude ",
+          lowestNeighbor.altitude,
+        );
+
+        console.log(
+          "Me : ",
+          cell.type,
+          " at ",
+          cell.x,
+          ",",
+          cell.y,
+          " with altitude ",
+          cell.altitude,
+        );
+
         lowestNeighbor.water_height = lowestNeighbor.water_height + 0.5;
         lowestNeighbor.altitude =
           lowestNeighbor.terrain_height + lowestNeighbor.water_height;
@@ -165,13 +191,32 @@ export class MemStorage implements IStorage {
     } else {
       cell.water_height = cell.water_height + 0.5;
       cell.altitude = cell.terrain_height + cell.water_height;
+
+      console.log(
+        "I'm the lowest point, increasing water level, I'm a: ",
+        cell.type,
+        " at ",
+        cell.x,
+        ",",
+        cell.y,
+        " with altitude ",
+        cell.altitude,
+        " and water height ",
+        cell.water_height,
+        " and terrain height ",
+        cell.terrain_height,
+      );
     }
+
+    return true;
   }
 
   private propagateMoisture(moistureGrid: TerrainGrid): void {
-    const decay = 0.05;
-    const minGain = 0.001;
-    const altInfluence = 0.01;
+    const baseDecay = 0.15;
+    const minGain = 0.00001;
+    const altInfluence = 0.001;
+    const neighborCoef = 0.01;
+
     const directions = [
       [0, -1],
       [0, 1],
@@ -196,6 +241,28 @@ export class MemStorage implements IStorage {
 
     while (moistureQueue.length) {
       const { x, y, moisture, altitude } = moistureQueue.shift()!;
+
+      // compute avg moisture of neighbors for dynamic decay
+      let sum = 0,
+        cnt = 0;
+      for (let [dx, dy] of directions) {
+        const nx = x + dx,
+          ny = y + dy;
+        if (
+          nx < 0 ||
+          nx >= MemStorage.GRID_SIZE ||
+          ny < 0 ||
+          ny >= MemStorage.GRID_SIZE
+        )
+          continue;
+        sum += moistureGrid[ny][nx].base_moisture;
+        cnt++;
+      }
+      const avgNeigh = cnt > 0 ? sum / cnt : 0;
+
+      // dynamic decay and resulting gain
+      const decay = Math.min(1, baseDecay + neighborCoef * avgNeigh);
+
       const rawGain = moisture * decay;
       if (rawGain <= minGain) continue;
 
@@ -217,18 +284,16 @@ export class MemStorage implements IStorage {
         if (gain <= minGain) continue;
 
         const cell = moistureGrid[ny][nx];
-        if (gain > cell.base_moisture) {
-          cell.base_moisture = cell.base_moisture + gain;
-          if (!(cell.type === "river" || cell.type === "spring")) {
-            cell.moisture = cell.base_moisture + cell.added_moisture;
+        cell.base_moisture = cell.base_moisture + gain;
+        if (!(cell.type === "river" || cell.type === "spring")) {
+          cell.moisture = cell.base_moisture + cell.added_moisture;
 
-            if (cell.moisture > 0.75 && cell.moisture < 1) {
-              cell.type = "mud";
-            } else if (cell.moisture > 0.25 && cell.moisture <= 0.75) {
-              cell.type = "earth";
-            }
-            moistureQueue.push(cell);
+          if (cell.moisture > 0.75 && cell.moisture < 1) {
+            cell.type = "mud";
+          } else if (cell.moisture > 0.25 && cell.moisture <= 0.75) {
+            cell.type = "earth";
           }
+          moistureQueue.push(cell);
         }
       }
     }
@@ -241,10 +306,27 @@ export class MemStorage implements IStorage {
 
     this.terrain = moistureGrid;
 
+    let processedWatter = false;
     // Process water flow
     this.waterPoints.forEach((cell) => {
-      this.processWaterFlow(cell);
+      processedWatter = this.processWaterFlow(cell);
     });
+
+    // If no water was processed, add water to the lowest cell
+    if (!processedWatter) {
+      const lowestCell = this.waterPoints.reduce((min, current) =>
+        this.terrain[current.y][current.x].altitude <
+        this.terrain[min.y][min.x].altitude
+          ? this.terrain[current.y][current.x]
+          : this.terrain[min.y][min.x],
+      );
+
+      this.terrain[lowestCell.y][lowestCell.x].water_height =
+        this.terrain[lowestCell.y][lowestCell.x].water_height + 0.5;
+      this.terrain[lowestCell.y][lowestCell.x].altitude =
+        this.terrain[lowestCell.y][lowestCell.x].terrain_height +
+        this.terrain[lowestCell.y][lowestCell.x].water_height;
+    }
   }
 
   async getTerrainData(): Promise<TerrainGrid> {

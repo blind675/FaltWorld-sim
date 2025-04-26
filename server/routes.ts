@@ -10,12 +10,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const terrain = await storage.getTerrainData();
 
-      const riversAndSprings = terrain
-        .flat()
-        .filter((cell) => cell.type === "river" || cell.type === "spring");
-
-      console.log(`found ${riversAndSprings.length} rivers and springs`);
-
       res.json(terrain);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch terrain data" });
