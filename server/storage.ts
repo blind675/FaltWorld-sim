@@ -76,8 +76,9 @@ export class MemStorage implements IStorage {
   private perlin: PerlinNoise;
   private waterPoints: TerrainCell[];
 
-  static GRID_SIZE = 100;
-  static NOISE_SCALE = 0.05;
+  static GRID_SIZE = 300;
+  static NOISE_SCALE = 0.02;
+  static NUMBER_OF_SPRINGS = 5;
 
   constructor() {
     this.terrain = [];
@@ -123,9 +124,11 @@ export class MemStorage implements IStorage {
 
   private processWaterFlow(cell: TerrainCell): boolean {
     // Decrease terrain height and water level
-    cell.terrain_height = Math.max(cell.terrain_height - 0.0001, -200);
+    cell.terrain_height = Math.max(cell.terrain_height - 0.00001, -200);
     // evalopration
-    cell.water_height = Math.max(cell.water_height - 0.001, 0);
+    cell.water_height = Math.max(cell.water_height - 0.0001, 0);
+
+    cell.altitude = cell.terrain_height + cell.water_height;
 
     const x = cell.x;
     const y = cell.y;
@@ -178,8 +181,8 @@ export class MemStorage implements IStorage {
   private propagateMoisture(): void {
     // Constants
     const MAX_LAND_MOISTURE = 0.9;
-    const MOISTURE_TRANSFER_RATE = 0.008; // base amount spread each tick
-    const BASE_DISTANCE_LOSS = 0.0001; // lose moisture per cell away
+    const MOISTURE_TRANSFER_RATE = 0.01; // base amount spread each tick
+    const BASE_DISTANCE_LOSS = 0.0002; // lose moisture per cell away
     const ALTITUDE_PENALTY = 0.0001; // lose extra per altitude unit climbed
     const BASE_DECAY = 0.85; // global evaporation (1% moisture lost per tick)
 
@@ -226,13 +229,13 @@ export class MemStorage implements IStorage {
                 neighborCell.type = "river";
                 this.waterPoints.push(neighborCell);
               } else if (
-                neighborCell.moisture > 0.75 &&
+                neighborCell.moisture > 0.8 &&
                 neighborCell.moisture < 1
               ) {
                 neighborCell.type = "mud";
               } else if (
-                neighborCell.moisture > 0.25 &&
-                neighborCell.moisture <= 0.75
+                neighborCell.moisture > 0.2 &&
+                neighborCell.moisture <= 0.8
               ) {
                 neighborCell.type = "earth";
               }
@@ -257,6 +260,11 @@ export class MemStorage implements IStorage {
     this.propagateMoisture();
 
     let processedWatter = false;
+
+    // TODO: change from wattr points to rivers
+    // instead of array use array of arraws where each array is a river
+    // and each river is an array of cells
+
     // Process water flow
     this.waterPoints.forEach((cell) => {
       processedWatter = this.processWaterFlow(cell);
@@ -277,6 +285,23 @@ export class MemStorage implements IStorage {
         this.terrain[lowestCell.y][lowestCell.x].terrain_height +
         this.terrain[lowestCell.y][lowestCell.x].water_height;
     }
+
+    // TODO: add erosion
+    // TODO: add grass - and grass mechanincs 
+    // TODO: add trees - and tree mechanins
+    // TODO: add fruits - and fruit mechanins
+    // TODO: add temperature
+    // TODO: add wind
+    // TODO: add rain
+    // TODO: add snow
+    // TODO: add ice
+
+    // TODO: add rabbits
+    // TODO: add foxes
+    // TODO: add wolves
+    // TODO: add bears
+    // TODO: add humans
+    
   }
 
   async getTerrainData(): Promise<TerrainGrid> {
@@ -297,8 +322,11 @@ export class MemStorage implements IStorage {
       }
     }
 
-    // Randomly select 2 points from candidates
-    while (springs.length < 1 && candidates.length > 0) {
+    // Randomly select spring points from candidates
+    while (
+      springs.length < MemStorage.NUMBER_OF_SPRINGS &&
+      candidates.length > 0
+    ) {
       const idx = Math.floor(Math.random() * candidates.length);
       springs.push(candidates[idx]);
       candidates.splice(idx, 1);

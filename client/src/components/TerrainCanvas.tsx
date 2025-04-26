@@ -21,7 +21,9 @@ interface TerrainCanvasProps {
   height: number;
   onCellSelect?: (cellInfo: CellInfo | null) => void;
   visualizationSettings?: Partial<VisualizationSettings>;
-  onVisualizationSettingsChange?: (settings: Partial<VisualizationSettings>) => void;
+  onVisualizationSettingsChange?: (
+    settings: Partial<VisualizationSettings>,
+  ) => void;
 }
 
 interface CellInfo {
@@ -131,42 +133,42 @@ export function TerrainCanvas({
     } else if (cell.type === "mud" && settings.showMoisture) {
       // Dark brown for mud (high moisture) with gradient based on altitude
       const normalizedValue = (cell.altitude + 200) / 2400;
-      
+
       // Create a stronger color gradient for mud based on altitude
       // Higher altitude mud is darker, lower altitude mud is lighter
       const baseR = 120; // Base dark brown color components
       const baseG = 60;
       const baseB = 0;
-      
+
       // Calculate how much to darken based on altitude
       // We want higher altitudes to be darker (subtract from base color)
       const darkenFactor = normalizedValue * settings.exaggerateHeight;
-      
+
       // Apply darkening based on height - higher = darker
-      const r = Math.max(40, Math.floor(baseR - (darkenFactor * 80)));
-      const g = Math.max(20, Math.floor(baseG - (darkenFactor * 40)));
+      const r = Math.max(40, Math.floor(baseR - darkenFactor * 80));
+      const g = Math.max(20, Math.floor(baseG - darkenFactor * 40));
       const b = 0; // Keep blue at 0 for brown
-      
+
       return `rgb(${r}, ${g}, ${b})`;
     } else if (cell.type === "earth" && settings.showMoisture) {
       // Medium brown for earth (medium moisture) with gradient based on altitude
       const normalizedValue = (cell.altitude + 200) / 2400;
-      
+
       // Create a stronger color gradient for earth based on altitude
       // Higher altitude earth is darker, lower altitude earth is lighter
       const baseR = 180; // Base medium brown color components
       const baseG = 120;
       const baseB = 60;
-      
+
       // Calculate how much to darken based on altitude
       // We want higher altitudes to be darker (subtract from base color)
       const darkenFactor = normalizedValue * settings.exaggerateHeight;
-      
+
       // Apply darkening based on height - higher = darker
-      const r = Math.max(100, Math.floor(baseR - (darkenFactor * 80)));
-      const g = Math.max(60, Math.floor(baseG - (darkenFactor * 60)));
-      const b = Math.max(30, Math.floor(baseB - (darkenFactor * 30)));
-      
+      const r = Math.max(25, Math.floor(baseR - darkenFactor * 185));
+      const g = Math.max(10, Math.floor(baseG - darkenFactor * 140));
+      const b = Math.max(7, Math.floor(baseB - darkenFactor * 83));
+
       return `rgb(${r}, ${g}, ${b})`;
     } else if (settings.showElevation) {
       // Map altitude to grayscale (0-255)
@@ -195,30 +197,36 @@ export function TerrainCanvas({
     if (!ctx) return;
 
     const gridSize = terrain.length;
-    
+
     // Apply zoom and pan transformations
     const zoomLevel = settings.zoomLevel || 1.0;
     const panOffset = settings.panOffset || { x: 0, y: 0 };
-    
+
     // Calculate cell dimensions with zoom applied
     const cellWidth = (width / gridSize) * zoomLevel;
     const cellHeight = (height / gridSize) * zoomLevel;
-    
+
     // Clear the canvas
     ctx.clearRect(0, 0, width, height);
-    
+
     // Save the context state before applying transformations
     ctx.save();
-    
+
     // Apply pan offset
     ctx.translate(panOffset.x, panOffset.y);
-    
+
     // Calculate which cells are visible in the viewport
     const startX = Math.max(0, Math.floor(-panOffset.x / cellWidth));
     const startY = Math.max(0, Math.floor(-panOffset.y / cellHeight));
-    const endX = Math.min(gridSize, Math.ceil((width - panOffset.x) / cellWidth));
-    const endY = Math.min(gridSize, Math.ceil((height - panOffset.y) / cellHeight));
-    
+    const endX = Math.min(
+      gridSize,
+      Math.ceil((width - panOffset.x) / cellWidth),
+    );
+    const endY = Math.min(
+      gridSize,
+      Math.ceil((height - panOffset.y) / cellHeight),
+    );
+
     // Only render visible cells for performance
     for (let y = startY; y < endY; y++) {
       for (let x = startX; x < endX; x++) {
@@ -233,7 +241,7 @@ export function TerrainCanvas({
           x * cellWidth,
           y * cellHeight,
           cellWidth + 1, // Add 1 to prevent gaps
-          cellHeight + 1
+          cellHeight + 1,
         );
 
         // Draw contour lines if enabled
@@ -243,14 +251,17 @@ export function TerrainCanvas({
           const interval = settings.contourInterval;
 
           // Check if this cell is on a contour line
-          if (Math.round(altitude / interval) * interval === Math.round(altitude)) {
+          if (
+            Math.round(altitude / interval) * interval ===
+            Math.round(altitude)
+          ) {
             ctx.strokeStyle = "rgba(0,0,0,0.5)";
             ctx.lineWidth = 0.5;
             ctx.strokeRect(
               x * cellWidth,
               y * cellHeight,
               cellWidth,
-              cellHeight
+              cellHeight,
             );
           }
         }
@@ -277,10 +288,9 @@ export function TerrainCanvas({
         }
       }
     }
-    
+
     // Restore the context state
     ctx.restore();
-    
   }, [terrain, width, height, hoveredCell, selectedCell, settings]);
 
   // Mouse move handler to determine hovered cell
@@ -298,16 +308,16 @@ export function TerrainCanvas({
     // Apply zoom and pan transformations
     const zoomLevel = settings.zoomLevel || 1.0;
     const panOffset = settings.panOffset || { x: 0, y: 0 };
-    
+
     // Calculate cell coordinates accounting for zoom and pan
     const gridSize = terrain.length;
     const cellWidth = (width / gridSize) * zoomLevel;
     const cellHeight = (height / gridSize) * zoomLevel;
-    
+
     // Adjust mouse coordinates for zoom and pan
     const adjustedMouseX = (mouseX - panOffset.x) / zoomLevel;
     const adjustedMouseY = (mouseY - panOffset.y) / zoomLevel;
-    
+
     const cellX = Math.floor(adjustedMouseX / (width / gridSize));
     const cellY = Math.floor(adjustedMouseY / (height / gridSize));
 
@@ -332,50 +342,50 @@ export function TerrainCanvas({
   const handleMouseLeave = () => {
     setHoveredCell(null);
   };
-  
+
   // Wheel handler for zooming
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault();
-    
+
     if (!terrain.length) return;
-    
+
     // Get the current settings
     const currentZoom = settings.zoomLevel || 1.0;
     const currentPan = settings.panOffset || { x: 0, y: 0 };
-    
+
     // Calculate zoom change based on wheel delta
     // Negative delta means zoom in, positive means zoom out
     const zoomChange = e.deltaY < 0 ? 0.1 : -0.1;
     // Apply zoom with limits
     const newZoom = Math.max(0.5, Math.min(3.0, currentZoom + zoomChange));
-    
+
     // Get mouse position relative to canvas
     const canvas = canvasRef.current;
     if (!canvas) return;
-    
+
     const rect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
-    
+
     // Adjust pan to keep the point under the mouse fixed during zoom
     // This makes the zoom feel centered on the mouse pointer
     const newPanX = mouseX - (mouseX - currentPan.x) * (newZoom / currentZoom);
     const newPanY = mouseY - (mouseY - currentPan.y) * (newZoom / currentZoom);
-    
+
     // Update the visualization settings with new zoom and pan
     if (onVisualizationSettingsChange) {
       onVisualizationSettingsChange({
         ...settings,
         zoomLevel: newZoom,
-        panOffset: { x: newPanX, y: newPanY }
+        panOffset: { x: newPanX, y: newPanY },
       });
     }
   };
-  
+
   // Mouse down handler for panning
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPosition, setLastPanPosition] = useState({ x: 0, y: 0 });
-  
+
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     // Only initiate pan with middle mouse button (button 1) or right click (button 2)
     if (e.button === 1 || e.button === 2) {
@@ -384,44 +394,44 @@ export function TerrainCanvas({
       setLastPanPosition({ x: e.clientX, y: e.clientY });
     }
   };
-  
+
   const handleMouseUp = () => {
     setIsPanning(false);
   };
-  
+
   // Update pan position on mouse move while panning
   useEffect(() => {
     const handlePanMove = (e: MouseEvent) => {
       if (!isPanning) return;
-      
+
       const dx = e.clientX - lastPanPosition.x;
       const dy = e.clientY - lastPanPosition.y;
-      
+
       const currentPan = settings.panOffset || { x: 0, y: 0 };
       const newPan = {
         x: currentPan.x + dx,
-        y: currentPan.y + dy
+        y: currentPan.y + dy,
       };
-      
+
       if (onVisualizationSettingsChange) {
         onVisualizationSettingsChange({
           ...settings,
-          panOffset: newPan
+          panOffset: newPan,
         });
       }
-      
+
       setLastPanPosition({ x: e.clientX, y: e.clientY });
     };
-    
+
     // Add global mouse event listeners for panning
     if (isPanning) {
-      window.addEventListener('mousemove', handlePanMove);
-      window.addEventListener('mouseup', handleMouseUp);
+      window.addEventListener("mousemove", handlePanMove);
+      window.addEventListener("mouseup", handleMouseUp);
     }
-    
+
     return () => {
-      window.removeEventListener('mousemove', handlePanMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener("mousemove", handlePanMove);
+      window.removeEventListener("mouseup", handleMouseUp);
     };
   }, [isPanning, lastPanPosition, settings, onVisualizationSettingsChange]);
 
@@ -439,14 +449,14 @@ export function TerrainCanvas({
     // Apply zoom and pan transformations
     const zoomLevel = settings.zoomLevel || 1.0;
     const panOffset = settings.panOffset || { x: 0, y: 0 };
-    
+
     // Calculate cell coordinates accounting for zoom and pan
     const gridSize = terrain.length;
-    
+
     // Adjust mouse coordinates for zoom and pan
     const adjustedMouseX = (mouseX - panOffset.x) / zoomLevel;
     const adjustedMouseY = (mouseY - panOffset.y) / zoomLevel;
-    
+
     const cellX = Math.floor(adjustedMouseX / (width / gridSize));
     const cellY = Math.floor(adjustedMouseY / (height / gridSize));
 
