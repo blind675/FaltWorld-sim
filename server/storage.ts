@@ -1,4 +1,9 @@
-import { terrainCells, type TerrainCell, type InsertTerrainCell, type TerrainGrid } from "@shared/schema";
+import {
+  terrainCells,
+  type TerrainCell,
+  type InsertTerrainCell,
+  type TerrainGrid,
+} from "@shared/schema";
 
 // Simple implementation of Perlin noise for Node.js
 class PerlinNoise {
@@ -6,7 +11,8 @@ class PerlinNoise {
 
   constructor() {
     this.perm = new Array(512);
-    const permutation = new Array(256).fill(0)
+    const permutation = new Array(256)
+      .fill(0)
       .map((_, i) => i)
       .sort(() => Math.random() - 0.5);
 
@@ -28,7 +34,7 @@ class PerlinNoise {
     const grad2 = 1 + (h & 7);
     const u = h < 8 ? x : y;
     const v = h < 4 ? y : x;
-    return ((h & 1) ? -u : u) + ((h & 2) ? -v : v);
+    return (h & 1 ? -u : u) + (h & 2 ? -v : v);
   }
 
   noise(x: number, y: number): number {
@@ -44,16 +50,23 @@ class PerlinNoise {
     const A = this.perm[X] + Y;
     const B = this.perm[X + 1] + Y;
 
-    return this.lerp(v,
-      this.lerp(u,
-        this.grad(this.perm[A], x, y),
-        this.grad(this.perm[B], x - 1, y)
-      ),
-      this.lerp(u,
-        this.grad(this.perm[A + 1], x, y - 1),
-        this.grad(this.perm[B + 1], x - 1, y - 1)
-      )
-    ) * 0.5 + 0.5;
+    return (
+      this.lerp(
+        v,
+        this.lerp(
+          u,
+          this.grad(this.perm[A], x, y),
+          this.grad(this.perm[B], x - 1, y),
+        ),
+        this.lerp(
+          u,
+          this.grad(this.perm[A + 1], x, y - 1),
+          this.grad(this.perm[B + 1], x - 1, y - 1),
+        ),
+      ) *
+        0.5 +
+      0.5
+    );
   }
 }
 
@@ -77,8 +90,8 @@ export class MemStorage implements IStorage {
     return value * 2400 - 200;
   }
 
-  private selectSpringPoints(): { x: number, y: number }[] {
-    const springs: { x: number, y: number }[] = [];
+  private selectSpringPoints(): { x: number; y: number }[] {
+    const springs: { x: number; y: number }[] = [];
     const candidates = [];
 
     // Find all points with suitable height for springs
@@ -101,18 +114,37 @@ export class MemStorage implements IStorage {
     return springs;
   }
 
-  private getNeighbors(x: number, y: number): { x: number; y: number; altitude: number, type: string}[] {
-    const neighbors: { x: number; y: number; altitude: number,type: string  }[] = [];
+  private getNeighbors(
+    x: number,
+    y: number,
+  ): { x: number; y: number; altitude: number; type: string }[] {
+    const neighbors: {
+      x: number;
+      y: number;
+      altitude: number;
+      type: string;
+    }[] = [];
     const directions = [
-      [-1, 0], [1, 0], [0, -1], [0, 1],  // Orthogonal
+      [0, -1], // North
+      [0, 1], // South
+      [-1, 0], // West
+      [1, 0], // East
+      [-1, -1], // Northwest
+      [1, -1], // Northeast
+      [-1, 1], // Southwest
+      [1, 1], // Southeast
     ];
 
     for (const [dx, dy] of directions) {
       const newX = x + dx;
       const newY = y + dy;
 
-      if (newX >= 0 && newX < this.terrain[0].length &&
-          newY >= 0 && newY < this.terrain.length) {
+      if (
+        newX >= 0 &&
+        newX < this.terrain[0].length &&
+        newY >= 0 &&
+        newY < this.terrain.length
+      ) {
         const cell = this.terrain[newY][newX];
         neighbors.push({
           x: newX,
@@ -137,16 +169,19 @@ export class MemStorage implements IStorage {
     for (let y = 0; y < GRID_SIZE; y++) {
       for (let x = 0; x < GRID_SIZE; x++) {
         const cell = this.terrain[y][x];
-        if (cell.type !== 'spring' && cell.type !== 'river') continue;
+        if (cell.type !== "spring" && cell.type !== "river") continue;
 
         // Decrease terrain height and water level
-        tempGrid[y][x].terrain_height = Math.max(cell.terrain_height - 0.01, -200);
-        tempGrid[y][x].water_height = Math.max(cell.water_height - 0.1, 0);
+        tempGrid[y][x].terrain_height = Math.max(
+          cell.terrain_height - 0.0001,
+          -200,
+        );
+        tempGrid[y][x].water_height = Math.max(cell.water_height - 0.001, 0);
 
         // Find lowest neighbor
         const neighbors = this.getNeighbors(x, y);
-        const lowestNeighbor = neighbors.reduce((min, current) => 
-          current.altitude < min.altitude ? current : min
+        const lowestNeighbor = neighbors.reduce((min, current) =>
+          current.altitude < min.altitude ? current : min,
         );
 
         // Current cell's altitude
@@ -157,14 +192,24 @@ export class MemStorage implements IStorage {
           const targetCell = tempGrid[lowestNeighbor.y][lowestNeighbor.x];
 
           // if the lowest cell is already a river and there is only one neighbor that is a river, spring, lake, or sea
-          if (targetCell.type === 'river' && this.getNeighbors(targetCell.x, targetCell.y).filter(cell => (cell.type === "spring" || cell.type === "river")).length === 1) {
+          if (
+            targetCell.type === "river" &&
+            this.getNeighbors(targetCell.x, targetCell.y).filter(
+              (cell) => cell.type === "spring" || cell.type === "river",
+            ).length === 1
+          ) {
             // Add water to existing river
             targetCell.water_height += 1;
+            console.log(
+              `INCREASE  - ${targetCell.x}, ${targetCell.y} water height: ${targetCell.water_height.toFixed(2)}, altitude: ${targetCell.altitude.toFixed(2)}`,
+            );
           } else {
             // Create new river
-            targetCell.type = 'river';
+            targetCell.type = "river";
             targetCell.water_height = 1;
-            console.log(`set ${targetCell.x}, ${targetCell.y} to river`);
+            console.log(
+              `NEW RIVER - ${targetCell.x}, ${targetCell.y} water height: ${targetCell.water_height.toFixed(2)}, altitude: ${targetCell.altitude.toFixed(2)}`,
+            );
           }
         }
       }
@@ -180,11 +225,13 @@ export class MemStorage implements IStorage {
   }
 
   async generateTerrain(): Promise<TerrainGrid> {
-    const GRID_SIZE = 150;
-    const NOISE_SCALE = 0.03;
+    const GRID_SIZE = 250;
+    const NOISE_SCALE = 0.05;
 
     // Initialize empty grid
-    this.terrain = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(null));
+    this.terrain = Array(GRID_SIZE)
+      .fill(null)
+      .map(() => Array(GRID_SIZE).fill(null));
 
     for (let y = 0; y < GRID_SIZE; y++) {
       for (let x = 0; x < GRID_SIZE; x++) {
@@ -200,7 +247,7 @@ export class MemStorage implements IStorage {
           altitude: mappedHeight, // Initially same as terrain_height
           base_moisture: 0,
           moisture: 0,
-          type: 'rock'
+          type: "rock",
         };
 
         this.terrain[y][x] = cell;
@@ -211,7 +258,7 @@ export class MemStorage implements IStorage {
     const springs = this.selectSpringPoints();
     for (const spring of springs) {
       if (this.terrain[spring.y] && this.terrain[spring.y][spring.x]) {
-        this.terrain[spring.y][spring.x].type = 'spring';
+        this.terrain[spring.y][spring.x].type = "spring";
         this.terrain[spring.y][spring.x].base_moisture = 1;
         this.terrain[spring.y][spring.x].moisture = 1;
       }

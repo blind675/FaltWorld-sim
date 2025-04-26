@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { type TerrainGrid, type TerrainCell } from '@shared/schema';
+import { useEffect, useRef, useState } from "react";
+import { type TerrainGrid, type TerrainCell } from "@shared/schema";
 
 interface TerrainCanvasProps {
   terrain: TerrainGrid;
@@ -19,13 +19,13 @@ export function TerrainCanvas({ terrain, width, height }: TerrainCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hoveredCell, setHoveredCell] = useState<CellInfo | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  
+
   // Draw the terrain grid
   useEffect(() => {
     if (!canvasRef.current || !terrain.length) return;
 
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     const gridSize = terrain.length;
@@ -39,16 +39,21 @@ export function TerrainCanvas({ terrain, width, height }: TerrainCanvasProps) {
         const cell = terrain[y][x];
         if (!cell) continue;
 
-        if (cell.type === 'spring') {
-          ctx.fillStyle = 'rgb(0, 0, 255)'; // Blue for springs
-        } else if (cell.type === 'river') {
-          ctx.fillStyle = 'rgb(0, 128, 255)'; // Light blue for rivers
+        if (cell.type === "spring") {
+          ctx.fillStyle = "rgb(0, 0, 255)"; // Blue for springs
+        } else if (cell.type === "river") {
+          // Different blue shades based on water height
+          if (cell.water_height >= 1) {
+            ctx.fillStyle = "rgb(0, 64, 192)"; // Darker blue for deeper rivers
+          } else {
+            ctx.fillStyle = "rgb(0, 128, 255)"; // Light blue for shallow rivers
+          }
         } else {
           // Map altitude to grayscale (0-255)
           // Map from [-200,2200] to [0,255]
           const normalizedValue = (cell.altitude + 200) / 2400;
           // Inverse the value (255-value) to make high values darker
-          const value = Math.floor(255 - (normalizedValue * 255));
+          const value = Math.floor(255 - normalizedValue * 255);
           ctx.fillStyle = `rgb(${value},${value},${value})`;
         }
 
@@ -56,19 +61,14 @@ export function TerrainCanvas({ terrain, width, height }: TerrainCanvasProps) {
           x * cellWidth,
           y * cellHeight,
           cellWidth + 1, // Add 1 to prevent gaps
-          cellHeight + 1
+          cellHeight + 1,
         );
-        
+
         // Highlight the hovered cell with a white border
         if (hoveredCell && hoveredCell.x === x && hoveredCell.y === y) {
-          ctx.strokeStyle = 'white';
+          ctx.strokeStyle = "white";
           ctx.lineWidth = 2;
-          ctx.strokeRect(
-            x * cellWidth, 
-            y * cellHeight, 
-            cellWidth, 
-            cellHeight
-          );
+          ctx.strokeRect(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
         }
       }
     }
@@ -77,23 +77,23 @@ export function TerrainCanvas({ terrain, width, height }: TerrainCanvasProps) {
   // Mouse move handler to determine hovered cell
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current || !terrain.length) return;
-    
+
     // Get canvas position and mouse coordinates
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
-    
+
     setMousePosition({ x: e.clientX, y: e.clientY });
-    
+
     // Calculate cell coordinates
     const gridSize = terrain.length;
     const cellWidth = width / gridSize;
     const cellHeight = height / gridSize;
-    
+
     const cellX = Math.floor(mouseX / cellWidth);
     const cellY = Math.floor(mouseY / cellHeight);
-    
+
     // Check if coordinates are within bounds
     if (cellX >= 0 && cellX < gridSize && cellY >= 0 && cellY < gridSize) {
       const cell = terrain[cellY][cellX];
@@ -103,15 +103,15 @@ export function TerrainCanvas({ terrain, width, height }: TerrainCanvasProps) {
           x: cellX,
           y: cellY,
           screenX: mouseX,
-          screenY: mouseY
+          screenY: mouseY,
         });
         return;
       }
     }
-    
+
     setHoveredCell(null);
   };
-  
+
   const handleMouseLeave = () => {
     setHoveredCell(null);
   };
@@ -126,23 +126,53 @@ export function TerrainCanvas({ terrain, width, height }: TerrainCanvasProps) {
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
       />
-      
+
       {/* Cell information popup */}
       {hoveredCell && (
-        <div 
+        <div
           className="absolute z-10 bg-black/80 text-white p-3 rounded-md text-sm shadow-lg"
           style={{
             left: mousePosition.x + 10,
             top: mousePosition.y + 10,
-            maxWidth: '250px'
+            maxWidth: "250px",
           }}
         >
-          <div className="font-bold mb-1">Position: ({hoveredCell.x}, {hoveredCell.y})</div>
-          <div>Type: <span className="font-medium">{hoveredCell.cell.type}</span></div>
-          <div>Altitude: <span className="font-medium">{hoveredCell.cell.altitude.toFixed(2)}</span></div>
-          <div>Terrain Height: <span className="font-medium">{hoveredCell.cell.terrain_height.toFixed(2)}</span></div>
-          <div>Water Height: <span className="font-medium">{hoveredCell.cell.water_height.toFixed(2)}</span></div>
-          <div>Moisture: <span className="font-medium">{hoveredCell.cell.moisture.toFixed(2)}</span></div>
+          <div className="font-bold mb-1">
+            Position: ({hoveredCell.x}, {hoveredCell.y})
+          </div>
+          <div>
+            Type: <span className="font-medium">{hoveredCell.cell.type}</span>
+          </div>
+          <div>
+            Altitude:{" "}
+            <span className="font-medium">
+              {hoveredCell.cell.altitude.toFixed(2)}
+            </span>
+          </div>
+          <div>
+            Terrain Height:{" "}
+            <span className="font-medium">
+              {hoveredCell.cell.terrain_height.toFixed(2)}
+            </span>
+          </div>
+          <div>
+            Water Height:{" "}
+            <span className="font-medium">
+              {hoveredCell.cell.water_height.toFixed(2)}
+            </span>
+          </div>
+          <div>
+            Base Moisture:{" "}
+            <span className="font-medium">
+              {hoveredCell.cell.base_moisture.toFixed(2)}
+            </span>
+          </div>
+          <div>
+            Moisture:{" "}
+            <span className="font-medium">
+              {hoveredCell.cell.moisture.toFixed(2)}
+            </span>
+          </div>
         </div>
       )}
     </div>
