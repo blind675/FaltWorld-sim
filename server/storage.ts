@@ -114,16 +114,8 @@ export class MemStorage implements IStorage {
     return springs;
   }
 
-  private getNeighbors(
-    x: number,
-    y: number,
-  ): { x: number; y: number; altitude: number; type: string }[] {
-    const neighbors: {
-      x: number;
-      y: number;
-      altitude: number;
-      type: string;
-    }[] = [];
+  private getNeighbors(x: number, y: number): TerrainCell[] {
+    const neighbors: TerrainCell[] = [];
     const directions = [
       [0, -1], // North
       [0, 1], // South
@@ -146,12 +138,7 @@ export class MemStorage implements IStorage {
         newY < this.terrain.length
       ) {
         const cell = this.terrain[newY][newX];
-        neighbors.push({
-          x: newX,
-          y: newY,
-          altitude: cell.terrain_height + cell.water_height,
-          type: cell.type,
-        });
+        neighbors.push(cell);
       }
     }
 
@@ -191,29 +178,24 @@ export class MemStorage implements IStorage {
         if (lowestNeighbor.altitude < currentAltitude) {
           const targetCell = tempGrid[lowestNeighbor.y][lowestNeighbor.x];
 
-          // if the lowest cell is already a river and there is only one neighbor that is a river, spring, lake, or sea
-          if (
-            targetCell.type === "river" &&
-            this.getNeighbors(targetCell.x, targetCell.y).filter(
-              (cell) => cell.type === "spring" || cell.type === "river",
-            ).length === 1
-          ) {
-            // Add water to existing river
-            targetCell.water_height += 1;
-            // console.log(
-            //   `INCREASE  - ${targetCell.x}, ${targetCell.y} water height: ${targetCell.water_height.toFixed(2)}, altitude: ${targetCell.altitude.toFixed(2)}`,
-            // );
-          } else {
-            // Create new river
-            targetCell.type = "river";
-            targetCell.water_height = 1;
-            targetCell.base_moisture = 1;
-            targetCell.added_moisture = 0;
-            targetCell.moisture = 1;
-            // console.log(
-            //   `NEW RIVER - ${targetCell.x}, ${targetCell.y} water height: ${targetCell.water_height.toFixed(2)}, altitude: ${targetCell.altitude.toFixed(2)}`,
-            // );
-          }
+          // Create new river
+          targetCell.type = "river";
+          targetCell.water_height = 1;
+          targetCell.base_moisture = 1;
+          targetCell.added_moisture = 0;
+          targetCell.moisture = 1;
+          targetCell.altitude =
+            targetCell.terrain_height + targetCell.water_height;
+          // console.log(
+          //   `NEW RIVER - ${targetCell.x}, ${targetCell.y} water height: ${targetCell.water_height.toFixed(2)}, altitude: ${targetCell.altitude.toFixed(2)}`,
+          // );
+        } else {
+          cell.water_height = cell.water_height + 1;
+          cell.altitude = cell.terrain_height + cell.water_height;
+
+          // console.log(
+          //   `INCREASE  - ${targetCell.x}, ${targetCell.y} water height: ${targetCell.water_height.toFixed(2)}, altitude: ${targetCell.altitude.toFixed(2)}`,
+          // );
         }
       }
     }
@@ -241,7 +223,7 @@ export class MemStorage implements IStorage {
     for (let y = 0; y < GRID_SIZE; y++) {
       for (let x = 0; x < GRID_SIZE; x++) {
         if (tempGrid[y][x].base_moisture > 0.0001) {
-          moistureQueue.push({ x, y, moisture: tempGrid[y][x].base_moisture });
+          moistureQueue.push(tempGrid[y][x]);
         }
       }
     }
@@ -255,20 +237,15 @@ export class MemStorage implements IStorage {
       const rawGain = moisture * decay;
       if (rawGain <= minGain) continue;
 
-      for (const [dx, dy] of directions) {
-        const nx = x + dx;
-        const ny = y + dy;
-        // skip out of bounds
-        if (ny < 0 || ny >= GRID_SIZE || nx < 0 || nx >= GRID_SIZE) continue;
+      const neighbors = this.getNeighbors(x, y);
 
+      for (const cell of neighbors) {
         // altitude factor: >1 downhill, <1 uphill, clamped ≥ 0
-        const altDiff = baseAlt - moistureGrid[ny][nx].altitude;
+        const altDiff = baseAlt - cell.altitude;
         const altFactor = Math.max(0, 1 + altInfluence * altDiff);
 
         const gain = rawGain * altFactor;
         if (gain <= minGain) continue;
-
-        const cell = moistureGrid[ny][nx];
 
         // if this contribution beats the neighbour’s current moisture, update + re-enqueue
         if (gain > cell.base_moisture) {
@@ -283,9 +260,9 @@ export class MemStorage implements IStorage {
           if (cell.moisture > 0.75 && cell.moisture < 1) {
             // High moisture - mud
             cell.type = "mud";
-            console.log(
-              `MUD      - ${x}, ${y} moisture: ${cell.moisture.toFixed(2)}`,
-            );
+            // console.log(
+            //   `MUD      - ${x}, ${y} moisture: ${cell.moisture.toFixed(2)}`,
+            // );
           } else if (cell.moisture > 0.25 && cell.moisture <= 0.75) {
             // Medium moisture - earth
             cell.type = "earth";
@@ -293,9 +270,51 @@ export class MemStorage implements IStorage {
             //   `EARTH    - ${x}, ${y} moisture: ${cell.moisture.toFixed(2)}`,
             // );
           }
-          moistureQueue.push({ x: nx, y: ny, moisture: gain });
+          moistureQueue.push(cell);
         }
       }
+
+      // for (const [dx, dy] of directions) {
+      //   const nx = x + dx;
+      //   const ny = y + dy;
+      //   // skip out of bounds
+      //   if (ny < 0 || ny >= GRID_SIZE || nx < 0 || nx >= GRID_SIZE) continue;
+
+      //   // altitude factor: >1 downhill, <1 uphill, clamped ≥ 0
+      //   const altDiff = baseAlt - moistureGrid[ny][nx].altitude;
+      //   const altFactor = Math.max(0, 1 + altInfluence * altDiff);
+
+      //   const gain = rawGain * altFactor;
+      //   if (gain <= minGain) continue;
+
+      //   const cell = moistureGrid[ny][nx];
+
+      //   // if this contribution beats the neighbour’s current moisture, update + re-enqueue
+      //   if (gain > cell.base_moisture) {
+      //     cell.base_moisture = +gain;
+      //     // Don't change already wet cells (river, spring)
+      //     if (cell.type === "river" || cell.type === "spring") continue;
+
+      //     // Calculate total moisture (base + added)
+      //     cell.moisture = cell.base_moisture + cell.added_moisture;
+
+      //     // Update cell type based on moisture level
+      //     if (cell.moisture > 0.75 && cell.moisture < 1) {
+      //       // High moisture - mud
+      //       cell.type = "mud";
+      //       // console.log(
+      //       //   `MUD      - ${x}, ${y} moisture: ${cell.moisture.toFixed(2)}`,
+      //       // );
+      //     } else if (cell.moisture > 0.25 && cell.moisture <= 0.75) {
+      //       // Medium moisture - earth
+      //       cell.type = "earth";
+      //       // console.log(
+      //       //   `EARTH    - ${x}, ${y} moisture: ${cell.moisture.toFixed(2)}`,
+      //       // );
+      //     }
+      //     moistureQueue.push({ x: nx, y: ny, moisture: gain });
+      //   }
+      // }
     }
 
     // Update the terrain with the new values
