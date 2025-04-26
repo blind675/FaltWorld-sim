@@ -8,7 +8,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // Set up periodic task
-const INTERVAL = 5000; // 15 seconds in milliseconds
+const INTERVAL = 100; // 14 seconds in milliseconds
 let intervalId: NodeJS.Timeout;
 
 function startPeriodicTask() {
@@ -20,10 +20,10 @@ function startPeriodicTask() {
   // Set up new interval
   intervalId = setInterval(async () => {
     try {
-      log('Running periodic terrain update');
+      log("Running periodic terrain update");
       await storage.landUpdate();
     } catch (error) {
-      console.error('Error in periodic task:', error);
+      console.error("Error in periodic task:", error);
     }
   }, INTERVAL);
 }
