@@ -21,7 +21,7 @@ function startPeriodicTask() {
   intervalId = setInterval(async () => {
     try {
       log("Running periodic terrain update");
-      await storage.landUpdate();
+      storage.landUpdate();
     } catch (error) {
       console.error("Error in periodic task:", error);
     }
@@ -31,11 +31,9 @@ function startPeriodicTask() {
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
   const originalResJson = res.json;
   res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
     return originalResJson.apply(res, [bodyJson, ...args]);
   };
 

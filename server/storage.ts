@@ -68,7 +68,7 @@ class PerlinNoise {
 export interface IStorage {
   getTerrainData(): Promise<TerrainGrid>;
   generateTerrain(): Promise<TerrainGrid>;
-  landUpdate(): Promise<TerrainGrid>;
+  landUpdate(): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -121,17 +121,14 @@ export class MemStorage implements IStorage {
     return neighbors;
   }
 
-  private processWaterFlow(cell: TerrainCell, tempGrid: TerrainGrid): void {
+  private processWaterFlow(cell: TerrainCell): void {
     // Decrease terrain height and water level
+    cell.terrain_height = Math.max(cell.terrain_height - 0.0001, -200);
+    // evalopration
+    cell.water_height = Math.max(cell.water_height - 0.001, 0);
+
     const x = cell.x;
     const y = cell.y;
-    tempGrid[y][x].terrain_height = Math.max(
-      cell.terrain_height - 0.0001,
-      -200,
-    );
-    // evalopration
-    tempGrid[y][x].water_height = Math.max(cell.water_height - 0.001, 0);
-
     // Find lowest neighbor
     const neighbors = this.getNeighbors(x, y);
     const lowestNeighbor = neighbors.reduce((min, current) =>
@@ -139,56 +136,40 @@ export class MemStorage implements IStorage {
     );
 
     // if this cell has two river neighbours or one sping or one river skip it
-    if (
-      neighbors.filter((n) => n.type === "river").length >= 2 ||
-      neighbors.some((n) => n.type === "spring")
-    ) {
+    if (neighbors.filter((n) => n.type === "river").length >= 2) {
       return;
     }
 
-    // If neighbor is lower, water flows there
+    if (cell.type === "spring" && lowestNeighbor.type === "river") {
+      return;
+    }
+
     if (lowestNeighbor.altitude < cell.altitude) {
+      // If neighbor is lower, water flows there
       // if lowest neighbor is a river or spring, increase water level
       if (lowestNeighbor.type === "river" || lowestNeighbor.type === "spring") {
-        this.increaseWaterLevel(lowestNeighbor);
+        lowestNeighbor.water_height = lowestNeighbor.water_height + 0.5;
+        lowestNeighbor.altitude =
+          lowestNeighbor.terrain_height + lowestNeighbor.water_height;
       } else {
-        this.createNewRiver(lowestNeighbor);
+        lowestNeighbor.type = "river";
+        lowestNeighbor.water_height = 0.5;
+        lowestNeighbor.base_moisture = 1;
+        lowestNeighbor.added_moisture = 0;
+        lowestNeighbor.moisture = 1;
+        lowestNeighbor.altitude =
+          lowestNeighbor.terrain_height + lowestNeighbor.water_height;
+
+        this.waterPoints.push(lowestNeighbor);
       }
     } else {
-      this.increaseWaterLevel(cell);
+      cell.water_height = cell.water_height + 0.5;
+      cell.altitude = cell.terrain_height + cell.water_height;
     }
   }
 
-  private createNewRiver(cell: TerrainCell): void {
-    cell.type = "river";
-    cell.water_height = 1;
-    cell.base_moisture = 1;
-    cell.added_moisture = 0;
-    cell.moisture = 1;
-    cell.altitude = cell.terrain_height + cell.water_height;
-
-    this.waterPoints.push(cell);
-
-    console.log(
-      `NEW RIVER - ${cell.x}, ${cell.y} water height: ${cell.water_height.toFixed(2)}, altitude: ${cell.altitude.toFixed(2)}`,
-    );
-  }
-
-  private increaseWaterLevel(cell: TerrainCell): void {
-    cell.water_height = cell.water_height + 1;
-    cell.altitude = cell.terrain_height + cell.water_height;
-
-    console.log(
-      `INCREASE  - ${cell.x}, ${cell.y} water height: ${cell.water_height.toFixed(2)}, altitude: ${cell.altitude.toFixed(2)} for type: ${cell.type}`,
-    );
-  }
-
-  private propagateMoisture(
-    moistureGrid: TerrainGrid,
-    tempGrid: TerrainGrid,
-    GRID_SIZE: number,
-  ): void {
-    const decay = 0.25;
+  private propagateMoisture(moistureGrid: TerrainGrid): void {
+    const decay = 0.05;
     const minGain = 0.001;
     const altInfluence = 0.01;
     const directions = [
@@ -205,10 +186,10 @@ export class MemStorage implements IStorage {
     const moistureQueue: TerrainCell[] = [];
 
     // Initialize queue with high moisture cells
-    for (let y = 0; y < GRID_SIZE; y++) {
-      for (let x = 0; x < GRID_SIZE; x++) {
-        if (tempGrid[y][x].base_moisture > 0.0001) {
-          moistureQueue.push(tempGrid[y][x]);
+    for (let y = 0; y < MemStorage.GRID_SIZE; y++) {
+      for (let x = 0; x < MemStorage.GRID_SIZE; x++) {
+        if (moistureGrid[y][x].base_moisture > 0.0001) {
+          moistureQueue.push(moistureGrid[y][x]);
         }
       }
     }
@@ -221,7 +202,13 @@ export class MemStorage implements IStorage {
       for (const [dx, dy] of directions) {
         const nx = x + dx;
         const ny = y + dy;
-        if (ny < 0 || ny >= GRID_SIZE || nx < 0 || nx >= GRID_SIZE) continue;
+        if (
+          ny < 0 ||
+          ny >= MemStorage.GRID_SIZE ||
+          nx < 0 ||
+          nx >= MemStorage.GRID_SIZE
+        )
+          continue;
 
         const altDiff = altitude - moistureGrid[ny][nx].altitude;
         const altFactor = Math.max(0, 1 + altInfluence * altDiff);
@@ -247,20 +234,17 @@ export class MemStorage implements IStorage {
     }
   }
 
-  async landUpdate(): Promise<TerrainGrid> {
-    const tempGrid: TerrainGrid = JSON.parse(JSON.stringify(this.terrain));
+  async landUpdate() {
+    // Calculate moisture propagation
+    const moistureGrid: TerrainGrid = JSON.parse(JSON.stringify(this.terrain));
+    this.propagateMoisture(moistureGrid);
+
+    this.terrain = moistureGrid;
 
     // Process water flow
     this.waterPoints.forEach((cell) => {
-      this.processWaterFlow(cell, tempGrid);
+      this.processWaterFlow(cell);
     });
-
-    // Calculate moisture propagation
-    const moistureGrid: TerrainGrid = JSON.parse(JSON.stringify(tempGrid));
-    this.propagateMoisture(moistureGrid, tempGrid, MemStorage.GRID_SIZE);
-
-    this.terrain = moistureGrid;
-    return this.terrain;
   }
 
   async getTerrainData(): Promise<TerrainGrid> {
@@ -281,7 +265,7 @@ export class MemStorage implements IStorage {
       }
     }
 
-    // Randomly select 5 points from candidates
+    // Randomly select 2 points from candidates
     while (springs.length < 1 && candidates.length > 0) {
       const idx = Math.floor(Math.random() * candidates.length);
       springs.push(candidates[idx]);
