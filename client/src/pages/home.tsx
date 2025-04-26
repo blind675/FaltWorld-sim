@@ -60,14 +60,14 @@ export default function Home() {
     try {
       // Generate new terrain on the backend
       await apiRequest("POST", "/api/terrain/generate");
-      
+
       // Fetch the new terrain data to update the UI
       await refetch();
-      
+
       // Reset timers
       setLastRefresh(new Date());
       setTimeUntilRefresh(refreshInterval);
-      
+
       console.log("Terrain regenerated successfully");
     } catch (error) {
       console.error("Error regenerating terrain:", error);
@@ -91,7 +91,7 @@ export default function Home() {
             <TerrainCanvas terrain={terrain} width={800} height={800} />
           )}
         </div>
-        
+
         {/* Controls and Info */}
         <Card className="flex-grow">
           <CardHeader>
@@ -103,14 +103,12 @@ export default function Home() {
           <CardContent>
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-4">
-                <Button onClick={handleRegenerate}>
-                  Regenerate Terrain
-                </Button>
+                <Button onClick={handleRegenerate}>Regenerate Terrain</Button>
                 <div className="text-sm text-muted-foreground">
                   Auto-refresh every {refreshInterval} seconds
                 </div>
               </div>
-              
+
               <div className="mt-4">
                 <h3 className="text-lg font-medium mb-2">Map Information</h3>
                 <div className="grid grid-cols-2 gap-2 text-sm">
@@ -127,12 +125,20 @@ export default function Home() {
                     <span>River (High Water)</span>
                   </div>
                   <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-[rgb(102,51,0)]"></div>
+                    <span>Mud (High Moisture)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-[rgb(153,102,51)]"></div>
+                    <span>Earth (Medium Moisture)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
                     <div className="w-4 h-4 bg-[rgb(0,0,0)]"></div>
-                    <span>High Elevation</span>
+                    <span>High Elevation (Rock)</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 bg-[rgb(255,255,255)]"></div>
-                    <span>Low Elevation</span>
+                    <span>Low Elevation (Rock)</span>
                   </div>
                 </div>
               </div>

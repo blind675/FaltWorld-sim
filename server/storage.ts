@@ -207,6 +207,9 @@ export class MemStorage implements IStorage {
             // Create new river
             targetCell.type = "river";
             targetCell.water_height = 1;
+            targetCell.base_moisture = 1;
+            targetCell.added_moisture = 0;
+            targetCell.moisture = 1;
             console.log(
               `NEW RIVER - ${targetCell.x}, ${targetCell.y} water height: ${targetCell.water_height.toFixed(2)}, altitude: ${targetCell.altitude.toFixed(2)}`,
             );
@@ -215,8 +218,81 @@ export class MemStorage implements IStorage {
       }
     }
 
+    // Calculate moisture propagation (create another temporary array to avoid spreading moisture too quickly)
+    const moistureGrid: TerrainGrid = JSON.parse(JSON.stringify(tempGrid));
+    
+    // First, propagate moisture from cells with moisture > 0.0001
+    for (let y = 0; y < GRID_SIZE; y++) {
+      for (let x = 0; x < GRID_SIZE; x++) {
+        const cell = tempGrid[y][x];
+        
+        // Skip cells with negligible moisture
+        if (cell.base_moisture <= 0.0001) continue;
+        
+        // Get all neighbors
+        const directions = [
+          [0, -1], // North
+          [0, 1],  // South
+          [-1, 0], // West
+          [1, 0],  // East
+          [-1, -1], // Northwest
+          [1, -1],  // Northeast
+          [-1, 1],  // Southwest
+          [1, 1],   // Southeast
+        ];
+        
+        // Calculate moisture to spread to each neighbor (1/3 of cell's moisture)
+        const moistureToSpread = cell.base_moisture / 3;
+        
+        // Spread moisture to neighboring cells
+        for (const [dx, dy] of directions) {
+          const newX = x + dx;
+          const newY = y + dy;
+          
+          // Check if the neighbor is within grid bounds
+          if (
+            newX >= 0 &&
+            newX < GRID_SIZE &&
+            newY >= 0 &&
+            newY < GRID_SIZE
+          ) {
+            // Add moisture to the neighbor
+            moistureGrid[newY][newX].added_moisture += moistureToSpread;
+          }
+        }
+      }
+    }
+    
+    // Update moisture levels and cell types
+    for (let y = 0; y < GRID_SIZE; y++) {
+      for (let x = 0; x < GRID_SIZE; x++) {
+        const cell = moistureGrid[y][x];
+        
+        // Don't change already wet cells (river, spring)
+        if (cell.type === "river" || cell.type === "spring") continue;
+        
+        // Calculate total moisture (base + added)
+        cell.moisture = cell.base_moisture + cell.added_moisture;
+        
+        // Transfer added moisture to base moisture for next cycle
+        cell.base_moisture = cell.moisture;
+        cell.added_moisture = 0;
+        
+        // Update cell type based on moisture level
+        if (cell.moisture > 0.75 && cell.moisture < 1) {
+          // High moisture - mud
+          cell.type = "mud";
+          console.log(`MUD      - ${x}, ${y} moisture: ${cell.moisture.toFixed(2)}`);
+        } else if (cell.moisture > 0.25 && cell.moisture <= 0.75) {
+          // Medium moisture - earth
+          cell.type = "earth";
+          console.log(`EARTH    - ${x}, ${y} moisture: ${cell.moisture.toFixed(2)}`);
+        }
+      }
+    }
+
     // Update the terrain with the new values
-    this.terrain = tempGrid;
+    this.terrain = moistureGrid;
     return this.terrain;
   }
 
@@ -246,6 +322,7 @@ export class MemStorage implements IStorage {
           water_height: 0,
           altitude: mappedHeight, // Initially same as terrain_height
           base_moisture: 0,
+          added_moisture: 0,
           moisture: 0,
           type: "rock",
         };
@@ -260,6 +337,7 @@ export class MemStorage implements IStorage {
       if (this.terrain[spring.y] && this.terrain[spring.y][spring.x]) {
         this.terrain[spring.y][spring.x].type = "spring";
         this.terrain[spring.y][spring.x].base_moisture = 1;
+        this.terrain[spring.y][spring.x].added_moisture = 0;
         this.terrain[spring.y][spring.x].moisture = 1;
       }
     }

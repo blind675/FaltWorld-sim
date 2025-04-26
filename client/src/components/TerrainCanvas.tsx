@@ -48,6 +48,12 @@ export function TerrainCanvas({ terrain, width, height }: TerrainCanvasProps) {
           } else {
             ctx.fillStyle = "rgb(0, 128, 255)"; // Light blue for shallow rivers
           }
+        } else if (cell.type === "mud") {
+          // Dark brown for mud (high moisture)
+          ctx.fillStyle = "rgb(102, 51, 0)"; // Dark brown
+        } else if (cell.type === "earth") {
+          // Medium brown for earth (medium moisture)
+          ctx.fillStyle = "rgb(153, 102, 51)"; // Brown
         } else {
           // Map altitude to grayscale (0-255)
           // Map from [-200,2200] to [0,255]
