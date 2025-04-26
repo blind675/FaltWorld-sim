@@ -8,7 +8,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // Set up periodic task
-const INTERVAL = 30000; // 30 seconds in milliseconds
+const INTERVAL = 10000; // 10 seconds in milliseconds
 let intervalId: NodeJS.Timeout;
 
 function startPeriodicTask() {
@@ -51,7 +51,7 @@ app.use((req, res, next) => {
         logLine = logLine.slice(0, 79) + "…";
       }
 
-      log(logLine);
+      // log(logLine);
     }
   });
 

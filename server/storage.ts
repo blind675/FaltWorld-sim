@@ -76,6 +76,9 @@ export class MemStorage implements IStorage {
   private perlin: PerlinNoise;
   private waterPoints: TerrainCell[];
 
+  static GRID_SIZE = 100;
+  static NOISE_SCALE = 0.05;
+
   constructor() {
     this.terrain = [];
     this.perlin = new PerlinNoise();
@@ -135,12 +138,14 @@ export class MemStorage implements IStorage {
       current.altitude < min.altitude ? current : min,
     );
 
-    console.log(
-      `Found lowest neighbor at ${lowestNeighbor.x}, ${lowestNeighbor.y} with altitude ${lowestNeighbor.altitude.toFixed(2)}`,
-    );
-    console.log(
-      `Current cell at ${cell.x}, ${cell.y} with altitude ${cell.altitude.toFixed(2)}`,
-    );
+    // if this cell has two river neighbours or one sping or one river skip it
+    if (
+      neighbors.filter((n) => n.type === "river").length >= 2 ||
+      neighbors.some((n) => n.type === "spring")
+    ) {
+      return;
+    }
+
     // If neighbor is lower, water flows there
     if (lowestNeighbor.altitude < cell.altitude) {
       // if lowest neighbor is a river or spring, increase water level
@@ -243,19 +248,16 @@ export class MemStorage implements IStorage {
   }
 
   async landUpdate(): Promise<TerrainGrid> {
-    const GRID_SIZE = this.terrain.length;
-    if (GRID_SIZE === 0) return this.terrain;
-
     const tempGrid: TerrainGrid = JSON.parse(JSON.stringify(this.terrain));
 
     // Process water flow
-    for (const cell of this.waterPoints) {
+    this.waterPoints.forEach((cell) => {
       this.processWaterFlow(cell, tempGrid);
-    }
+    });
 
     // Calculate moisture propagation
     const moistureGrid: TerrainGrid = JSON.parse(JSON.stringify(tempGrid));
-    this.propagateMoisture(moistureGrid, tempGrid, GRID_SIZE);
+    this.propagateMoisture(moistureGrid, tempGrid, MemStorage.GRID_SIZE);
 
     this.terrain = moistureGrid;
     return this.terrain;
@@ -290,21 +292,21 @@ export class MemStorage implements IStorage {
   }
 
   async generateTerrain(): Promise<TerrainGrid> {
-    const GRID_SIZE = 100;
-    const NOISE_SCALE = 0.05;
-
     // Initialize empty grid
-    this.terrain = Array(GRID_SIZE)
+    this.terrain = Array(MemStorage.GRID_SIZE)
       .fill(null)
-      .map(() => Array(GRID_SIZE).fill(null));
+      .map(() => Array(MemStorage.GRID_SIZE).fill(null));
 
-    for (let y = 0; y < GRID_SIZE; y++) {
-      for (let x = 0; x < GRID_SIZE; x++) {
-        const noiseVal = this.perlin.noise(x * NOISE_SCALE, y * NOISE_SCALE);
+    for (let y = 0; y < MemStorage.GRID_SIZE; y++) {
+      for (let x = 0; x < MemStorage.GRID_SIZE; x++) {
+        const noiseVal = this.perlin.noise(
+          x * MemStorage.NOISE_SCALE,
+          y * MemStorage.NOISE_SCALE,
+        );
         const mappedHeight = this.mapHeight(noiseVal);
 
         const cell: TerrainCell = {
-          id: y * GRID_SIZE + x,
+          id: y * MemStorage.GRID_SIZE + x,
           x,
           y,
           terrain_height: mappedHeight,
