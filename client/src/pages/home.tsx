@@ -9,8 +9,9 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { type TerrainGrid } from "@shared/schema";
+import { RefreshCw } from "lucide-react";
 
 export default function Home() {
   const [refreshInterval, setRefreshInterval] = useState(10); // 10 seconds
@@ -27,12 +28,30 @@ export default function Home() {
     refetchOnWindowFocus: false,
   });
 
+  // Manual refresh handler
+  const handleManualRefresh = useCallback(async () => {
+    // Manually fetch new data from backend
+    await refetch();
+    
+    // Reset timers
+    setLastRefresh(new Date());
+    setTimeUntilRefresh(refreshInterval);
+    
+    console.log("Map manually refreshed");
+  }, [refetch, refreshInterval]);
+
   // Auto-refresh timer
   useEffect(() => {
-    const timer = setInterval(() => {
-      refetch();
-      setLastRefresh(new Date());
-      setTimeUntilRefresh(refreshInterval);
+    const timer = setInterval(async () => {
+      // Need to manually call API for terrain update
+      try {
+        await apiRequest("GET", "/api/terrain/update");
+        await refetch();
+        setLastRefresh(new Date());
+        setTimeUntilRefresh(refreshInterval);
+      } catch (error) {
+        console.error("Error during auto-refresh:", error);
+      }
     }, refreshInterval * 1000);
 
     return () => clearInterval(timer);
@@ -104,6 +123,14 @@ export default function Home() {
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-4">
                 <Button onClick={handleRegenerate}>Regenerate Terrain</Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => refetch()}
+                  title="Manually refresh terrain data"
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Refresh Map
+                </Button>
                 <div className="text-sm text-muted-foreground">
                   Auto-refresh every {refreshInterval} seconds
                 </div>
@@ -121,7 +148,7 @@ export default function Home() {
                     <span>River (Low Water)</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-[rgb(0,100,200)]"></div>
+                    <div className="w-4 h-4 bg-[rgb(0,64,192)]"></div>
                     <span>River (High Water)</span>
                   </div>
                   <div className="flex items-center gap-2">

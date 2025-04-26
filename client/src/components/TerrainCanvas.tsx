@@ -44,16 +44,26 @@ export function TerrainCanvas({ terrain, width, height }: TerrainCanvasProps) {
         } else if (cell.type === "river") {
           // Different blue shades based on water height
           if (cell.water_height >= 1) {
-            ctx.fillStyle = "rgb(0, 100, 200)"; // Darker blue for deeper rivers
+            ctx.fillStyle = "rgb(0, 64, 192)"; // Darker blue for deeper rivers
           } else {
             ctx.fillStyle = "rgb(0, 128, 255)"; // Light blue for shallow rivers
           }
         } else if (cell.type === "mud") {
-          // Dark brown for mud (high moisture)
-          ctx.fillStyle = "rgb(102, 51, 0)"; // Dark brown
+          // Dark brown for mud (high moisture) with gradient based on altitude
+          const normalizedValue = (cell.altitude + 200) / 2400;
+          // For mud: Dark brown with height-based gradient (102-51-0 to 80-40-0)
+          const r = Math.floor(102 - normalizedValue * 22);
+          const g = Math.floor(51 - normalizedValue * 11);
+          const b = Math.floor(0);
+          ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
         } else if (cell.type === "earth") {
-          // Medium brown for earth (medium moisture)
-          ctx.fillStyle = "rgb(153, 102, 51)"; // Brown
+          // Medium brown for earth (medium moisture) with gradient based on altitude
+          const normalizedValue = (cell.altitude + 200) / 2400;
+          // For earth: Brown with height-based gradient (153-102-51 to 120-80-40)
+          const r = Math.floor(153 - normalizedValue * 33);
+          const g = Math.floor(102 - normalizedValue * 22);
+          const b = Math.floor(51 - normalizedValue * 11);
+          ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
         } else {
           // Map altitude to grayscale (0-255)
           // Map from [-200,2200] to [0,255]
