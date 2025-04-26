@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { TerrainCanvas } from "@/components/TerrainCanvas";
+import { TerrainCanvas, VisualizationSettings } from "@/components/TerrainCanvas";
 import { apiRequest } from "@/lib/queryClient";
 import {
   Card,
@@ -11,7 +11,13 @@ import {
 } from "@/components/ui/card";
 import { useEffect, useState, useCallback } from "react";
 import { type TerrainGrid, type TerrainCell } from "@shared/schema";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Eye, Droplets, Mountain, Grid, MapPin, Thermometer } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 
 // Define CellInfo type for selected cell
 type CellInfo = {
@@ -27,6 +33,18 @@ export default function Home() {
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [timeUntilRefresh, setTimeUntilRefresh] = useState(refreshInterval);
   const [selectedCell, setSelectedCell] = useState<CellInfo | null>(null);
+  
+  // Visualization settings state
+  const [visualizationSettings, setVisualizationSettings] = useState<VisualizationSettings>({
+    showRivers: true,
+    showMoisture: true,
+    showElevation: true,
+    exaggerateHeight: 1.0,
+    contourLines: false,
+    contourInterval: 100,
+    colorMode: 'default',
+    wireframe: false
+  });
 
   const {
     data: terrain,
@@ -122,6 +140,7 @@ export default function Home() {
               width={800} 
               height={800} 
               onCellSelect={setSelectedCell}
+              visualizationSettings={visualizationSettings}
             />
           )}
         </div>
@@ -189,8 +208,185 @@ export default function Home() {
                 </div>
               )}
 
-              <div className="mt-4">
-                <h3 className="text-lg font-medium mb-2">Map Information</h3>
+              {/* Visualization Settings */}
+              <div className="mt-6">
+                <h3 className="text-lg font-medium mb-4">Visualization Settings</h3>
+                
+                <Tabs defaultValue="display-mode">
+                  <TabsList className="grid w-full grid-cols-2 mb-4">
+                    <TabsTrigger value="display-mode">Display Mode</TabsTrigger>
+                    <TabsTrigger value="features">Features</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="display-mode" className="space-y-4">
+                    <div className="space-y-4">
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">Color Mode</h4>
+                        <Select 
+                          defaultValue={visualizationSettings.colorMode}
+                          onValueChange={(value) => {
+                            setVisualizationSettings({
+                              ...visualizationSettings,
+                              colorMode: value as 'default' | 'heightmap' | 'moisture' | 'temperature'
+                            });
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select color mode" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="default">Default</SelectItem>
+                            <SelectItem value="heightmap">Heightmap</SelectItem>
+                            <SelectItem value="moisture">Moisture</SelectItem>
+                            <SelectItem value="temperature">Temperature</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <Label htmlFor="height-exaggeration" className="text-sm font-medium">
+                            <Mountain className="h-4 w-4 inline-block mr-1" /> 
+                            Height Exaggeration: {visualizationSettings.exaggerateHeight.toFixed(1)}x
+                          </Label>
+                        </div>
+                        <Slider 
+                          id="height-exaggeration"
+                          min={0.5} 
+                          max={3} 
+                          step={0.1} 
+                          defaultValue={[visualizationSettings.exaggerateHeight]}
+                          onValueChange={(value) => {
+                            setVisualizationSettings({
+                              ...visualizationSettings,
+                              exaggerateHeight: value[0]
+                            });
+                          }}
+                        />
+                      </div>
+                      
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="wireframe-toggle" className="cursor-pointer">
+                            <Grid className="h-4 w-4 inline-block mr-1" /> 
+                            Show Wireframe
+                          </Label>
+                          <Switch 
+                            id="wireframe-toggle" 
+                            checked={visualizationSettings.wireframe}
+                            onCheckedChange={(checked) => {
+                              setVisualizationSettings({
+                                ...visualizationSettings,
+                                wireframe: checked
+                              });
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </TabsContent>
+                  
+                  <TabsContent value="features" className="space-y-4">
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="rivers-toggle" className="cursor-pointer">
+                          <Droplets className="h-4 w-4 inline-block mr-1" /> 
+                          Show Rivers
+                        </Label>
+                        <Switch 
+                          id="rivers-toggle" 
+                          defaultChecked={visualizationSettings.showRivers}
+                          onCheckedChange={(checked) => {
+                            setVisualizationSettings({
+                              ...visualizationSettings,
+                              showRivers: checked
+                            });
+                          }}
+                        />
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="moisture-toggle" className="cursor-pointer">
+                          <Droplets className="h-4 w-4 inline-block mr-1" /> 
+                          Show Moisture (Mud & Earth)
+                        </Label>
+                        <Switch 
+                          id="moisture-toggle" 
+                          defaultChecked={visualizationSettings.showMoisture}
+                          onCheckedChange={(checked) => {
+                            setVisualizationSettings({
+                              ...visualizationSettings,
+                              showMoisture: checked
+                            });
+                          }}
+                        />
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="elevation-toggle" className="cursor-pointer">
+                          <Mountain className="h-4 w-4 inline-block mr-1" /> 
+                          Show Elevation
+                        </Label>
+                        <Switch 
+                          id="elevation-toggle" 
+                          defaultChecked={visualizationSettings.showElevation}
+                          onCheckedChange={(checked) => {
+                            setVisualizationSettings({
+                              ...visualizationSettings,
+                              showElevation: checked
+                            });
+                          }}
+                        />
+                      </div>
+                      
+                      <Separator />
+                      
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="contours-toggle" className="cursor-pointer">
+                          <MapPin className="h-4 w-4 inline-block mr-1" /> 
+                          Show Contour Lines
+                        </Label>
+                        <Switch 
+                          id="contours-toggle" 
+                          checked={visualizationSettings.contourLines}
+                          onCheckedChange={(checked) => {
+                            setVisualizationSettings({
+                              ...visualizationSettings,
+                              contourLines: checked
+                            });
+                          }}
+                        />
+                      </div>
+                      
+                      {visualizationSettings.contourLines && (
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <Label htmlFor="contour-interval" className="text-sm font-medium">
+                              Contour Interval: {visualizationSettings.contourInterval}
+                            </Label>
+                          </div>
+                          <Slider 
+                            id="contour-interval"
+                            min={25} 
+                            max={250} 
+                            step={25} 
+                            defaultValue={[visualizationSettings.contourInterval]}
+                            onValueChange={(value) => {
+                              setVisualizationSettings({
+                                ...visualizationSettings,
+                                contourInterval: value[0]
+                              });
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </div>
+              
+              <div className="mt-6">
+                <h3 className="text-lg font-medium mb-2">Map Legend</h3>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 bg-[rgb(0,0,255)]"></div>
