@@ -71,13 +71,22 @@ export interface IStorage {
   landUpdate(): Promise<TerrainGrid>;
 }
 
+interface WaterPoint {
+  x: number;
+  y: number;
+  type: "spring" | "river";
+  water_height: number;
+}
+
 export class MemStorage implements IStorage {
   private terrain: TerrainGrid;
   private perlin: PerlinNoise;
+  private waterPoints: WaterPoint[];
 
   constructor() {
     this.terrain = [];
     this.perlin = new PerlinNoise();
+    this.waterPoints = [];
   }
 
   private mapHeight(value: number): number {
@@ -159,6 +168,13 @@ export class MemStorage implements IStorage {
     cell.added_moisture = 0;
     cell.moisture = 1;
     cell.altitude = cell.terrain_height + cell.water_height;
+
+    this.waterPoints.push({
+      x: cell.x,
+      y: cell.y,
+      type: "river",
+      water_height: cell.water_height
+    });
 
     console.log(
       `NEW RIVER - ${cell.x}, ${cell.y} water height: ${cell.water_height.toFixed(2)}, altitude: ${cell.altitude.toFixed(2)}`,
@@ -323,12 +339,22 @@ export class MemStorage implements IStorage {
 
     // Select and mark spring points
     const springs = this.selectSpringPoints();
+    this.waterPoints = []; // Reset water points on new terrain generation
+    
     for (const spring of springs) {
       if (this.terrain[spring.y] && this.terrain[spring.y][spring.x]) {
-        this.terrain[spring.y][spring.x].type = "spring";
-        this.terrain[spring.y][spring.x].base_moisture = 1;
-        this.terrain[spring.y][spring.x].added_moisture = 0;
-        this.terrain[spring.y][spring.x].moisture = 1;
+        const cell = this.terrain[spring.y][spring.x];
+        cell.type = "spring";
+        cell.base_moisture = 1;
+        cell.added_moisture = 0;
+        cell.moisture = 1;
+        
+        this.waterPoints.push({
+          x: spring.x,
+          y: spring.y,
+          type: "spring",
+          water_height: 0
+        });
       }
     }
 
