@@ -36,7 +36,8 @@ export function TerrainCanvas({ terrain, width, height }: TerrainCanvasProps) {
           // Map altitude to grayscale (0-255)
           // Map from [-200,2200] to [0,255]
           const normalizedValue = (cell.altitude + 200) / 2400;
-          const value = Math.floor(normalizedValue * 255);
+          // Inverse the value (255-value) to make high values darker
+          const value = Math.floor(255 - (normalizedValue * 255));
           ctx.fillStyle = `rgb(${value},${value},${value})`;
         }
 
