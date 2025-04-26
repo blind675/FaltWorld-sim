@@ -101,11 +101,10 @@ export class MemStorage implements IStorage {
     return springs;
   }
 
-  private getNeighbors(x: number, y: number): { x: number; y: number; altitude: number }[] {
-    const neighbors: { x: number; y: number; altitude: number }[] = [];
+  private getNeighbors(x: number, y: number): { x: number; y: number; altitude: number, type: string}[] {
+    const neighbors: { x: number; y: number; altitude: number,type: string  }[] = [];
     const directions = [
       [-1, 0], [1, 0], [0, -1], [0, 1],  // Orthogonal
-      [-1, -1], [-1, 1], [1, -1], [1, 1]  // Diagonal
     ];
 
     for (const [dx, dy] of directions) {
@@ -118,7 +117,8 @@ export class MemStorage implements IStorage {
         neighbors.push({
           x: newX,
           y: newY,
-          altitude: cell.terrain_height + cell.water_height
+          altitude: cell.terrain_height + cell.water_height,
+          type: cell.type,
         });
       }
     }
@@ -156,13 +156,15 @@ export class MemStorage implements IStorage {
         if (lowestNeighbor.altitude < currentAltitude) {
           const targetCell = tempGrid[lowestNeighbor.y][lowestNeighbor.x];
 
-          if (targetCell.type === 'river') {
+          // if the lowest cell is already a river and there is only one neighbor that is a river, spring, lake, or sea
+          if (targetCell.type === 'river' && this.getNeighbors(targetCell.x, targetCell.y).filter(cell => (cell.type === "spring" || cell.type === "river")).length === 1) {
             // Add water to existing river
             targetCell.water_height += 1;
           } else {
             // Create new river
             targetCell.type = 'river';
             targetCell.water_height = 1;
+            console.log(`set ${targetCell.x}, ${targetCell.y} to river`);
           }
         }
       }
@@ -178,8 +180,8 @@ export class MemStorage implements IStorage {
   }
 
   async generateTerrain(): Promise<TerrainGrid> {
-    const GRID_SIZE = 250;
-    const NOISE_SCALE = 0.04;
+    const GRID_SIZE = 150;
+    const NOISE_SCALE = 0.03;
 
     // Initialize empty grid
     this.terrain = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(null));
