@@ -1,9 +1,4 @@
-import {
-  terrainCells,
-  type TerrainCell,
-  type InsertTerrainCell,
-  type TerrainGrid,
-} from "@shared/schema";
+import { type TerrainCell, type TerrainGrid } from "@shared/schema";
 
 // Simple implementation of Perlin noise for Node.js
 class PerlinNoise {
@@ -90,30 +85,6 @@ export class MemStorage implements IStorage {
     return value * 2400 - 200;
   }
 
-  private selectSpringPoints(): { x: number; y: number }[] {
-    const springs: { x: number; y: number }[] = [];
-    const candidates = [];
-
-    // Find all points with suitable height for springs
-    for (let y = 0; y < this.terrain.length; y++) {
-      for (let x = 0; x < this.terrain[0].length; x++) {
-        const height = this.terrain[y][x].terrain_height;
-        if (height >= 1700 && height <= 1900) {
-          candidates.push({ x, y });
-        }
-      }
-    }
-
-    // Randomly select 5 points from candidates
-    while (springs.length < 1 && candidates.length > 0) {
-      const idx = Math.floor(Math.random() * candidates.length);
-      springs.push(candidates[idx]);
-      candidates.splice(idx, 1);
-    }
-
-    return springs;
-  }
-
   private getNeighbors(x: number, y: number): TerrainCell[] {
     const neighbors: TerrainCell[] = [];
     const directions = [
@@ -149,18 +120,33 @@ export class MemStorage implements IStorage {
     // Decrease terrain height and water level
     const x = cell.x;
     const y = cell.y;
-    tempGrid[y][x].terrain_height = Math.max(cell.terrain_height - 0.0001, -200);
+    tempGrid[y][x].terrain_height = Math.max(
+      cell.terrain_height - 0.0001,
+      -200,
+    );
+    // evalopration
     tempGrid[y][x].water_height = Math.max(cell.water_height - 0.001, 0);
 
     // Find lowest neighbor
     const neighbors = this.getNeighbors(x, y);
     const lowestNeighbor = neighbors.reduce((min, current) =>
-      current.altitude < min.altitude ? current : min
+      current.altitude < min.altitude ? current : min,
     );
 
+    console.log(
+      `Found lowest neighbor at ${lowestNeighbor.x}, ${lowestNeighbor.y} with altitude ${lowestNeighbor.altitude.toFixed(2)}`,
+    );
+    console.log(
+      `Current cell at ${cell.x}, ${cell.y} with altitude ${cell.altitude.toFixed(2)}`,
+    );
     // If neighbor is lower, water flows there
     if (lowestNeighbor.altitude < cell.altitude) {
-      this.createNewRiver(tempGrid[lowestNeighbor.y][lowestNeighbor.x]);
+      // if lowest neighbor is a river or spring, increase water level
+      if (lowestNeighbor.type === "river" || lowestNeighbor.type === "spring") {
+        this.increaseWaterLevel(lowestNeighbor);
+      } else {
+        this.createNewRiver(lowestNeighbor);
+      }
     } else {
       this.increaseWaterLevel(cell);
     }
@@ -175,7 +161,7 @@ export class MemStorage implements IStorage {
     cell.altitude = cell.terrain_height + cell.water_height;
 
     console.log(
-      `NEW RIVER - ${cell.x}, ${cell.y} water height: ${cell.water_height.toFixed(2)}, altitude: ${cell.altitude.toFixed(2)}`
+      `NEW RIVER - ${cell.x}, ${cell.y} water height: ${cell.water_height.toFixed(2)}, altitude: ${cell.altitude.toFixed(2)}`,
     );
   }
 
@@ -184,30 +170,27 @@ export class MemStorage implements IStorage {
     cell.altitude = cell.terrain_height + cell.water_height;
 
     console.log(
-      `INCREASE  - ${cell.x}, ${cell.y} water height: ${cell.water_height.toFixed(2)}, altitude: ${cell.altitude.toFixed(2)}`
+      `INCREASE  - ${cell.x}, ${cell.y} water height: ${cell.water_height.toFixed(2)}, altitude: ${cell.altitude.toFixed(2)} for type: ${cell.type}`,
     );
   }
 
-  private updateCellMoisture(cell: TerrainCell, gain: number): void {
-    cell.base_moisture = gain;
-    if (cell.type === "river" || cell.type === "spring") return;
-
-    cell.moisture = cell.base_moisture + cell.added_moisture;
-
-    if (cell.moisture > 0.75 && cell.moisture < 1) {
-      cell.type = "mud";
-    } else if (cell.moisture > 0.25 && cell.moisture <= 0.75) {
-      cell.type = "earth";
-    }
-  }
-
-  private propagateMoisture(moistureGrid: TerrainGrid, tempGrid: TerrainGrid, GRID_SIZE: number): void {
+  private propagateMoisture(
+    moistureGrid: TerrainGrid,
+    tempGrid: TerrainGrid,
+    GRID_SIZE: number,
+  ): void {
     const decay = 0.25;
     const minGain = 0.001;
     const altInfluence = 0.01;
     const directions = [
-      [0, -1], [0, 1], [-1, 0], [1, 0],
-      [-1, -1], [1, -1], [-1, 1], [1, 1]
+      [0, -1],
+      [0, 1],
+      [-1, 0],
+      [1, 0],
+      [-1, -1],
+      [1, -1],
+      [-1, 1],
+      [1, 1],
     ];
 
     const moistureQueue: TerrainCell[] = [];
@@ -239,8 +222,17 @@ export class MemStorage implements IStorage {
 
         const cell = moistureGrid[ny][nx];
         if (gain > cell.base_moisture) {
-          this.updateCellMoisture(cell, gain);
-          moistureQueue.push({ x: nx, y: ny, moisture: gain });
+          cell.base_moisture = cell.base_moisture + gain;
+          if (cell.type === "river" || cell.type === "spring") return;
+
+          cell.moisture = cell.base_moisture + cell.added_moisture;
+
+          if (cell.moisture > 0.75 && cell.moisture < 1) {
+            cell.type = "mud";
+          } else if (cell.moisture > 0.25 && cell.moisture <= 0.75) {
+            cell.type = "earth";
+          }
+          moistureQueue.push(cell);
         }
       }
     }
@@ -274,9 +266,33 @@ export class MemStorage implements IStorage {
     return this.terrain;
   }
 
+  private selectSpringPoints(): { x: number; y: number }[] {
+    const springs: { x: number; y: number }[] = [];
+    const candidates = [];
+
+    // Find all points with suitable height for springs
+    for (let y = 0; y < this.terrain.length; y++) {
+      for (let x = 0; x < this.terrain[0].length; x++) {
+        const height = this.terrain[y][x].terrain_height;
+        if (height >= 1700 && height <= 1900) {
+          candidates.push({ x, y });
+        }
+      }
+    }
+
+    // Randomly select 5 points from candidates
+    while (springs.length < 1 && candidates.length > 0) {
+      const idx = Math.floor(Math.random() * candidates.length);
+      springs.push(candidates[idx]);
+      candidates.splice(idx, 1);
+    }
+
+    return springs;
+  }
+
   async generateTerrain(): Promise<TerrainGrid> {
-    const GRID_SIZE = 150;
-    const NOISE_SCALE = 0.04;
+    const GRID_SIZE = 100;
+    const NOISE_SCALE = 0.03;
 
     // Initialize empty grid
     this.terrain = Array(GRID_SIZE)

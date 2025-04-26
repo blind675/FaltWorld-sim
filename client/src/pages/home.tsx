@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 import { type TerrainGrid } from "@shared/schema";
 
 export default function Home() {
-  const [refreshInterval, setRefreshInterval] = useState(5); // 5 seconds
+  const [refreshInterval, setRefreshInterval] = useState(30); // 30 seconds
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [timeUntilRefresh, setTimeUntilRefresh] = useState(refreshInterval);
 
