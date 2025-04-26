@@ -24,6 +24,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/terrain/update', async (req, res) => {
+    try {
+      const terrain = await storage.landUpdate();
+      res.json(terrain);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update terrain" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

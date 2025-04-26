@@ -14,7 +14,7 @@ import { type TerrainGrid } from "@shared/schema";
 import { RefreshCw } from "lucide-react";
 
 export default function Home() {
-  const [refreshInterval, setRefreshInterval] = useState(10); // 10 seconds
+  const [refreshInterval, setRefreshInterval] = useState(15); // 15 seconds to match server interval
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [timeUntilRefresh, setTimeUntilRefresh] = useState(refreshInterval);
 
@@ -125,7 +125,16 @@ export default function Home() {
                 <Button onClick={handleRegenerate}>Regenerate Terrain</Button>
                 <Button 
                   variant="outline" 
-                  onClick={() => refetch()}
+                  onClick={async () => {
+                    try {
+                      // First trigger a landUpdate on the server
+                      await apiRequest("GET", "/api/terrain/update");
+                      // Then refresh the UI data
+                      await handleManualRefresh();
+                    } catch (error) {
+                      console.error("Error refreshing map:", error);
+                    }
+                  }}
                   title="Manually refresh terrain data"
                 >
                   <RefreshCw className="mr-2 h-4 w-4" />
