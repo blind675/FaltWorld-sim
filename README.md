@@ -16,9 +16,9 @@ Bugs:
 The river water flow is not correct:
    TODO: change from water points of rivers to use arrays instead, use an array of arrays where each array is a river and each river is an array of cells.
 
-Next steps:
-- Implement time: 
-- TODO: we have the concept of tick, the server updates every x time (5 min is the default, but this changes for debug purposes). We need to implement a time system with years, months, days, hours, and minutes. We can have it such that each system update (tick) is an hour in game time. We should also create a yearly season system that determines the day(light) / night(dark) cycle; in other words, the length of the day should be determined by the month/season. We could use the array : 
+- Next steps:
+  - Implement time: 
+    - TODO: we have the concept of tick, the server updates every x time (5 min is the default, but this changes for debug purposes). We need to implement a time system with years, months, days, hours, and minutes. We can have it such that each system update (tick) is an hour in game time. We should also create a yearly season system that determines the day(light) / night(dark) cycle; in other words, the length of the day should be determined by the month/season. We could use the array : 
 [
   { "month": "January", "month_number": 1, "daylight_hours": 8 },
   { "month": "February", "month_number": 2, "daylight_hours": 9 },
@@ -38,7 +38,7 @@ Maybe we could name this array months info or similar.
 
 This can be implemented in the server as an updated data structure with all the time values and whether it's night or day(light)
 
-- TODO: We should also send this data from the server to the client and display it somewhere. Maybe showing something like a clock for the current time that animates from one hour to the next one (the minute hands), and the animation takes as long as the backend update takes. We also need to send this information to the client.
+    - TODO: We should also send this data from the server to the client and display it somewhere. Maybe showing something like a clock for the current time that animates from one hour to the next one (the minute hands), and the animation takes as long as the backend update takes. We also need to send this information to the client.
 
    - // TODO: add erosion
    -  // TODO: add grass - and grass mechanics 
