@@ -35,6 +35,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { GameClock } from "@/components/GameClock";
 
 // Define CellInfo type for selected cell
 type CellInfo = {
@@ -180,6 +181,8 @@ export default function Home() {
           </CardHeader>
           <CardContent>
             <div className="flex flex-col gap-4">
+              {/* Game Clock */}
+              <GameClock />
               <div className="flex items-center gap-4">
                 <Button onClick={handleRegenerate}>Regenerate Terrain</Button>
                 <Button

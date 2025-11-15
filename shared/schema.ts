@@ -22,3 +22,15 @@ export type InsertTerrainCell = z.infer<typeof insertTerrainCellSchema>;
 export type TerrainCell = typeof terrainCells.$inferSelect;
 
 export type TerrainGrid = TerrainCell[][];
+
+// Game time system
+export interface GameTime {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  is_day: boolean;
+  month_name: string;
+  daylight_hours: number;
+}
