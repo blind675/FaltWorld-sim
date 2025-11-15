@@ -1,5 +1,39 @@
 import { type TerrainCell, type TerrainGrid } from "@shared/schema";
 
+// Month information with daylight hours for seasonal day/night cycles
+interface MonthInfo {
+  month: string;
+  month_number: number;
+  daylight_hours: number;
+}
+
+const MONTHS_INFO: MonthInfo[] = [
+  { month: "January", month_number: 1, daylight_hours: 8 },
+  { month: "February", month_number: 2, daylight_hours: 9 },
+  { month: "March", month_number: 3, daylight_hours: 12 },
+  { month: "April", month_number: 4, daylight_hours: 13 },
+  { month: "May", month_number: 5, daylight_hours: 15 },
+  { month: "June", month_number: 6, daylight_hours: 16 },
+  { month: "July", month_number: 7, daylight_hours: 15 },
+  { month: "August", month_number: 8, daylight_hours: 14 },
+  { month: "September", month_number: 9, daylight_hours: 12 },
+  { month: "October", month_number: 10, daylight_hours: 10 },
+  { month: "November", month_number: 11, daylight_hours: 9 },
+  { month: "December", month_number: 12, daylight_hours: 8 }
+];
+
+// Game time tracking system
+export interface GameTime {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  is_day: boolean;
+  month_name: string;
+  daylight_hours: number;
+}
+
 // Simple implementation of Perlin noise for Node.js
 class PerlinNoise {
   private perm: number[];
@@ -69,21 +103,84 @@ export interface IStorage {
   getTerrainData(): Promise<TerrainGrid>;
   generateTerrain(): Promise<TerrainGrid>;
   landUpdate(): Promise<void>;
+  getGameTime(): GameTime;
 }
 
 export class MemStorage implements IStorage {
   private terrain: TerrainGrid;
   private perlin: PerlinNoise;
   private waterPoints: TerrainCell[];
+  private gameTime: GameTime;
 
   static GRID_SIZE = 300;
   static NOISE_SCALE = 0.02;
   static NUMBER_OF_SPRINGS = 5;
+  static HOURS_PER_DAY = 24;
+  static DAYS_PER_MONTH = 30;
+  static MONTHS_PER_YEAR = 12;
 
   constructor() {
     this.terrain = [];
     this.perlin = new PerlinNoise();
     this.waterPoints = [];
+    
+    // Initialize game time - starting at Year 1, January 1st, midnight
+    this.gameTime = {
+      year: 1,
+      month: 1,
+      day: 1,
+      hour: 0,
+      minute: 0,
+      is_day: false,
+      month_name: "January",
+      daylight_hours: 8
+    };
+    this.updateDayNightStatus();
+  }
+
+  private updateDayNightStatus(): void {
+    // Get current month info
+    const monthInfo = MONTHS_INFO[this.gameTime.month - 1];
+    this.gameTime.month_name = monthInfo.month;
+    this.gameTime.daylight_hours = monthInfo.daylight_hours;
+    
+    // Day starts at 6 AM and lasts for daylight_hours
+    // For example, if daylight_hours = 8, day is from 6:00 to 14:00 (6am to 2pm)
+    // If daylight_hours = 16, day is from 6:00 to 22:00 (6am to 10pm)
+    const dayStartHour = 6;
+    const dayEndHour = dayStartHour + monthInfo.daylight_hours;
+    
+    this.gameTime.is_day = this.gameTime.hour >= dayStartHour && this.gameTime.hour < dayEndHour;
+  }
+
+  private advanceTime(): void {
+    // Each tick = 1 hour in-game
+    this.gameTime.hour += 1;
+    
+    // Handle hour overflow (24 hours per day)
+    if (this.gameTime.hour >= MemStorage.HOURS_PER_DAY) {
+      this.gameTime.hour = 0;
+      this.gameTime.day += 1;
+      
+      // Handle day overflow (30 days per month)
+      if (this.gameTime.day > MemStorage.DAYS_PER_MONTH) {
+        this.gameTime.day = 1;
+        this.gameTime.month += 1;
+        
+        // Handle month overflow (12 months per year)
+        if (this.gameTime.month > MemStorage.MONTHS_PER_YEAR) {
+          this.gameTime.month = 1;
+          this.gameTime.year += 1;
+        }
+      }
+    }
+    
+    // Update day/night status after time change
+    this.updateDayNightStatus();
+  }
+
+  getGameTime(): GameTime {
+    return { ...this.gameTime };
   }
 
   private mapHeight(value: number): number {
@@ -256,6 +353,9 @@ export class MemStorage implements IStorage {
   }
 
   async landUpdate() {
+    // Advance game time by 1 hour each tick
+    this.advanceTime();
+    
     // Calculate moisture propagation
     this.propagateMoisture();
 

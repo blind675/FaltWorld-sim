@@ -25,6 +25,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/time", async (req, res) => {
+    try {
+      const gameTime = storage.getGameTime();
+      res.json(gameTime);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch game time" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

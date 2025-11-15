@@ -14,6 +14,10 @@ run = ["npm", "run", "start"]
 localPort = 5000
 externalPort = 80
 
+[[ports]]
+localPort = 41519
+externalPort = 3000
+
 [workflows]
 runButton = "Project"
 
@@ -37,3 +41,6 @@ agentRequireRestartOnSave = false
 task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5000
+
+[agent]
+expertMode = true
