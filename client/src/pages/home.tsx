@@ -47,7 +47,7 @@ type CellInfo = {
 };
 
 export default function Home() {
-  const [refreshInterval, setRefreshInterval] = useState(20); // 20 seconds to match server interval
+  const [refreshInterval, setRefreshInterval] = useState(10); // 20 seconds to match server interval
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [timeUntilRefresh, setTimeUntilRefresh] = useState(refreshInterval);
   const [selectedCell, setSelectedCell] = useState<CellInfo | null>(null);
@@ -63,7 +63,7 @@ export default function Home() {
       contourInterval: 100,
       colorMode: "default",
       wireframe: false,
-      zoomLevel: 1.0,
+      zoomLevel: 2.0,
       panOffset: { x: 0, y: 0 },
     });
 
@@ -222,6 +222,13 @@ export default function Home() {
                     <div className="font-semibold">Type:</div>
                     <div className="capitalize">{selectedCell.cell.type}</div>
 
+                    {selectedCell.cell.river_name && (
+                      <>
+                        <div className="font-semibold">River Name:</div>
+                        <div className="text-blue-500">🌊 {selectedCell.cell.river_name}</div>
+                      </>
+                    )}
+
                     <div className="font-semibold">Altitude:</div>
                     <div>{selectedCell.cell.altitude.toFixed(2)}</div>
 
@@ -332,13 +339,13 @@ export default function Home() {
                           />
                         </div>
                       </div>
-                      
+
                       <Separator />
-                      
+
                       {/* Map Navigation Controls */}
                       <div className="space-y-4">
                         <h4 className="text-sm font-medium mb-2">Map Navigation</h4>
-                        
+
                         <div>
                           <div className="flex items-center justify-between mb-2">
                             <Label
@@ -356,7 +363,7 @@ export default function Home() {
                           </div>
                           <Slider
                             id="zoom-level"
-                            min={0.5}
+                            min={1.5}
                             max={3}
                             step={0.1}
                             value={[visualizationSettings.zoomLevel]}
@@ -368,17 +375,17 @@ export default function Home() {
                             }}
                           />
                         </div>
-                        
+
                         <div className="text-sm text-muted-foreground mt-1">
                           <p>You can zoom with the mouse wheel and pan with middle/right click drag.</p>
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             size="sm"
                             className="mt-2"
                             onClick={() => {
                               setVisualizationSettings({
                                 ...visualizationSettings,
-                                zoomLevel: 1.0,
+                                zoomLevel: 2.0,
                                 panOffset: { x: 0, y: 0 }
                               });
                             }}

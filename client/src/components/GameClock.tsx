@@ -4,60 +4,50 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Sun, Moon } from "lucide-react";
 import { useEffect, useState } from "react";
 
-const TICK_INTERVAL = 500; // Match server tick interval (500ms for debug)
+interface BackendConfig {
+  updateInterval: number;
+}
 
 export function GameClock() {
   const [minuteRotation, setMinuteRotation] = useState(0);
   const [hourRotation, setHourRotation] = useState(0);
 
-  const { data: gameTime } = useQuery<GameTime>({
-    queryKey: ["/api/time"],
-    refetchInterval: TICK_INTERVAL,
+  // Fetch backend configuration to get the update interval
+  const { data: config } = useQuery<BackendConfig>({
+    queryKey: ["/api/config"],
+    staleTime: Infinity, // Config doesn't change, fetch once
   });
 
-  // Animate minute hand smoothly over the tick interval
+  const tickInterval = config?.updateInterval ?? 1000; // Default to 1 second if not loaded
+
+  const { data: gameTime } = useQuery<GameTime>({
+    queryKey: ["/api/time"],
+    refetchInterval: tickInterval,
+  });
+
+  // Animate minute hand to complete a full rotation over each tick interval
   useEffect(() => {
     if (!gameTime) return;
 
-    // Normalize current rotation to [0, 360)
-    const normalizedStart = ((minuteRotation % 360) + 360) % 360;
-    
-    // Target is 6 degrees per minute (360/60), always in [0, 360)
-    const targetRotation = gameTime.minute * 6;
-    
+    // Get the current rotation value
+    const startRotationValue = minuteRotation;
+
+    // Target is to complete a full 360-degree rotation during this tick
+    const delta = 360;
+
     // Calculate hour hand position (30 degrees per hour + 0.5 degrees per minute)
     const newHourRotation = (gameTime.hour % 12) * 30 + gameTime.minute * 0.5;
     setHourRotation(newHourRotation);
 
-    // Calculate the forward delta (always move clockwise)
-    let delta = targetRotation - normalizedStart;
-    
-    // If the delta is negative, we need to go forward through 360
-    // For example: from 354° to 6° should be +12° not -348°
-    if (delta < 0) {
-      delta += 360;
-    }
-    
-    // Always move forward (clockwise) - never go backwards even for large jumps
-
     const startTime = Date.now();
-    const startRotationValue = normalizedStart;
 
     const animate = () => {
       const elapsed = Date.now() - startTime;
-      const progress = Math.min(elapsed / TICK_INTERVAL, 1);
+      const progress = Math.min(elapsed / tickInterval, 1);
 
-      // Smooth easing function
-      const easeProgress = progress < 0.5
-        ? 2 * progress * progress
-        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+      // Linear progress for smooth constant rotation
+      const rotation = startRotationValue + (delta * progress);
 
-      // Calculate new rotation by adding the eased delta
-      let rotation = startRotationValue + (delta * easeProgress);
-      
-      // Normalize to [0, 360) to prevent unbounded growth
-      rotation = ((rotation % 360) + 360) % 360;
-      
       setMinuteRotation(rotation);
 
       if (progress < 1) {
@@ -66,7 +56,7 @@ export function GameClock() {
     };
 
     animate();
-  }, [gameTime?.hour, gameTime?.minute]);
+  }, [gameTime?.hour, gameTime?.minute, tickInterval]);
 
   if (!gameTime) {
     return (
@@ -122,7 +112,7 @@ export function GameClock() {
                   strokeWidth="2"
                   className="text-muted-foreground"
                 />
-                
+
                 {/* Hour markers */}
                 {[...Array(12)].map((_, i) => {
                   const angle = (i * 30 - 90) * (Math.PI / 180);
@@ -194,11 +184,10 @@ export function GameClock() {
           {/* Day/Night Status */}
           <div className="flex items-center justify-center">
             <div
-              className={`px-3 py-1 rounded-full text-xs font-medium ${
-                gameTime.is_day
-                  ? "bg-yellow-500/20 text-yellow-700 dark:text-yellow-300"
-                  : "bg-blue-500/20 text-blue-700 dark:text-blue-300"
-              }`}
+              className={`px-3 py-1 rounded-full text-xs font-medium ${gameTime.is_day
+                ? "bg-yellow-500/20 text-yellow-700 dark:text-yellow-300"
+                : "bg-blue-500/20 text-blue-700 dark:text-blue-300"
+                }`}
               data-testid="badge-day-night-status"
             >
               {gameTime.is_day ? "Daytime" : "Nighttime"}

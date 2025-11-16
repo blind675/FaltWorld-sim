@@ -43,6 +43,7 @@ export function TerrainCanvas({
   onVisualizationSettingsChange,
 }: TerrainCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const minimapRef = useRef<HTMLCanvasElement>(null);
   const [hoveredCell, setHoveredCell] = useState<CellInfo | null>(null);
   const [selectedCell, setSelectedCell] = useState<CellInfo | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
@@ -57,7 +58,7 @@ export function TerrainCanvas({
     contourInterval: 100,
     colorMode: "default",
     wireframe: false,
-    zoomLevel: 1.0,
+    zoomLevel: 2.0,
     panOffset: { x: 0, y: 0 },
   };
 
@@ -293,6 +294,85 @@ export function TerrainCanvas({
     ctx.restore();
   }, [terrain, width, height, hoveredCell, selectedCell, settings]);
 
+  // Draw the minimap
+  useEffect(() => {
+    if (!minimapRef.current || !terrain.length) return;
+
+    const minimap = minimapRef.current;
+    const ctx = minimap.getContext("2d");
+    if (!ctx) return;
+
+    const minimapSize = 150; // Size of the minimap
+    const gridSize = terrain.length;
+    const cellSize = minimapSize / gridSize;
+
+    // Clear the minimap
+    ctx.clearRect(0, 0, minimapSize, minimapSize);
+
+    // Draw the terrain on the minimap (simplified version)
+    for (let y = 0; y < gridSize; y++) {
+      for (let x = 0; x < gridSize; x++) {
+        const cell = terrain[y][x];
+        if (!cell) continue;
+
+        // Use simplified color scheme for minimap
+        ctx.fillStyle = getCellColor(cell);
+        ctx.fillRect(x * cellSize, y * cellSize, cellSize + 1, cellSize + 1);
+      }
+    }
+
+    // Draw viewport indicator
+    const zoomLevel = settings.zoomLevel || 1.0;
+    const panOffset = settings.panOffset || { x: 0, y: 0 };
+
+    // Calculate the visible area in grid coordinates
+    const cellWidth = (width / gridSize) * zoomLevel;
+    const cellHeight = (height / gridSize) * zoomLevel;
+
+    // Calculate viewport bounds in grid space
+    const viewportStartX = -panOffset.x / cellWidth;
+    const viewportStartY = -panOffset.y / cellHeight;
+    const viewportWidth = width / cellWidth;
+    const viewportHeight = height / cellHeight;
+
+    // Draw viewport rectangle on minimap
+    ctx.strokeStyle = "rgba(255, 215, 0, 0.9)"; // Gold color
+    ctx.lineWidth = 2;
+    ctx.strokeRect(
+      viewportStartX * cellSize,
+      viewportStartY * cellSize,
+      viewportWidth * cellSize,
+      viewportHeight * cellSize
+    );
+
+    // Draw a semi-transparent overlay outside the viewport
+    ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+
+    // Top
+    ctx.fillRect(0, 0, minimapSize, viewportStartY * cellSize);
+    // Bottom
+    ctx.fillRect(
+      0,
+      (viewportStartY + viewportHeight) * cellSize,
+      minimapSize,
+      minimapSize - (viewportStartY + viewportHeight) * cellSize
+    );
+    // Left
+    ctx.fillRect(
+      0,
+      viewportStartY * cellSize,
+      viewportStartX * cellSize,
+      viewportHeight * cellSize
+    );
+    // Right
+    ctx.fillRect(
+      (viewportStartX + viewportWidth) * cellSize,
+      viewportStartY * cellSize,
+      minimapSize - (viewportStartX + viewportWidth) * cellSize,
+      viewportHeight * cellSize
+    );
+  }, [terrain, width, height, settings, getCellColor]);
+
   // Mouse move handler to determine hovered cell
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current || !terrain.length) return;
@@ -356,8 +436,8 @@ export function TerrainCanvas({
     // Calculate zoom change based on wheel delta
     // Negative delta means zoom in, positive means zoom out
     const zoomChange = e.deltaY < 0 ? 0.1 : -0.1;
-    // Apply zoom with limits
-    const newZoom = Math.max(0.5, Math.min(3.0, currentZoom + zoomChange));
+    // Apply zoom with limits (min 1.5x, max 3.0x)
+    const newZoom = Math.max(1.5, Math.min(3.0, currentZoom + zoomChange));
 
     // Get mouse position relative to canvas
     const canvas = canvasRef.current;
@@ -505,6 +585,16 @@ export function TerrainCanvas({
         onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right click
       />
 
+      {/* Minimap */}
+      <div className="absolute bottom-4 right-4 border-2 border-gold rounded-lg shadow-lg bg-black/50 backdrop-blur-sm">
+        <canvas
+          ref={minimapRef}
+          width={150}
+          height={150}
+          className="rounded-lg"
+        />
+      </div>
+
       {/* Cell information popup */}
       {hoveredCell && (
         <div
@@ -521,6 +611,11 @@ export function TerrainCanvas({
           <div>
             Type: <span className="font-medium">{hoveredCell.cell.type}</span>
           </div>
+          {hoveredCell.cell.river_name && (
+            <div>
+              River: <span className="font-medium text-blue-300">🌊 {hoveredCell.cell.river_name}</span>
+            </div>
+          )}
           <div>
             Altitude:{" "}
             <span className="font-medium">

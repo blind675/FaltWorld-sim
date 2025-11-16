@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { INTERVAL } from "./index";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Generate initial terrain
@@ -31,6 +32,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(gameTime);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch game time" });
+    }
+  });
+
+  app.get("/api/config", async (req, res) => {
+    try {
+      res.json({
+        updateInterval: INTERVAL, // Backend update interval in milliseconds
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch config" });
     }
   });
 
