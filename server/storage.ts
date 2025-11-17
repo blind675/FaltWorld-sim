@@ -66,6 +66,33 @@ export class MemStorage implements IStorage {
   static EROSION_RATE_WIND = 0.0001; // 0.1mm per hour
   // static EVAPORATION_RATE_WATER = 0.0001;
 
+  // Moisture System Configuration
+  static MOISTURE_CONFIG = {
+    // Base moisture transfer
+    maxLandMoisture: 0.85,              // Maximum moisture a land cell can hold
+    transferRate: 0.025,                 // Base amount of moisture spread each tick
+    minTransfer: 0.00005,                // Stop propagating below this threshold
+
+    // Propagation limits
+    maxPropagationDistance: 50,          // Maximum cells moisture can travel per tick
+    maxCellsProcessed: 500000,           // Hard limit on cells processed per tick
+
+    // Altitude effects (percentage-based)
+    uphillPenaltyPercent: 0.0006,        // % reduction per meter when going uphill
+    altitudeDrynessPercent: 0.0004,      // % reduction based on absolute altitude
+    downhillBonusPercent: 0.0003,        // % bonus per meter when going downhill
+
+    // Water volume effects
+    waterVolumeBoostFactor: 0.3,         // Multiplier for water height boost
+    maxWaterVolumeBoost: 1.5,            // Maximum boost from water volume
+
+    // Diminishing returns
+    saturationExponent: 1.2,             // Controls how aggressively moisture saturates (lower = less aggressive)
+
+    // Evaporation
+    baseDecay: 0.99,                     // Global evaporation (1 - this value = % moisture lost per tick)
+  };
+
   constructor() {
     this.terrain = [];
     this.worldGenerator = new WorldGenerator(DEFAULT_WORLD_CONFIG);
@@ -305,16 +332,17 @@ export class MemStorage implements IStorage {
   }
 
   private propagateMoisture(): void {
-    // Constants
-    const MAX_LAND_MOISTURE = 0.85;
-    const MOISTURE_TRANSFER_RATE = 0.025; // base amount spread each tick
-    const UPHILL_PENALTY_PERCENT = 0.0005; // % reduction per meter when going uphill
-    const ALTITUDE_DRYNESS_PERCENT = 0.0005; // % reduction based on absolute altitude
-    const DOWNHILL_BONUS_PERCENT = 0.0002; // % bonus per meter when going downhill (moisture flows easier)
-    const MIN_TRANSFER = 0.0001; // stop propagating below this
-    const MAX_PROPAGATION_DISTANCE = 50; // cells per tick
-    const MAX_CELLS_PROCESSED = 500000; // hard limit on cells processed per tick (increased for full propagation)
-    const BASE_DECAY = 0.98; // global evaporation (1% moisture lost per tick)
+    // Use centralized moisture configuration
+    const config = MemStorage.MOISTURE_CONFIG;
+    const MAX_LAND_MOISTURE = config.maxLandMoisture;
+    const MOISTURE_TRANSFER_RATE = config.transferRate;
+    const UPHILL_PENALTY_PERCENT = config.uphillPenaltyPercent;
+    const ALTITUDE_DRYNESS_PERCENT = config.altitudeDrynessPercent;
+    const DOWNHILL_BONUS_PERCENT = config.downhillBonusPercent;
+    const MIN_TRANSFER = config.minTransfer;
+    const MAX_PROPAGATION_DISTANCE = config.maxPropagationDistance;
+    const MAX_CELLS_PROCESSED = config.maxCellsProcessed;
+    const BASE_DECAY = config.baseDecay;
 
     // Track visited cells to prevent duplicate processing
     const visited = new Set<string>();
@@ -357,7 +385,10 @@ export class MemStorage implements IStorage {
 
         // Water volume boost: cells with more water spread moisture more effectively
         // This simulates larger water bodies having greater influence
-        const waterVolumeBoost = 1.0 + Math.min(cell.water_height * 0.3, 1.5); // Up to 2.5x boost for deep water
+        const waterVolumeBoost = 1.0 + Math.min(
+          cell.water_height * config.waterVolumeBoostFactor,
+          config.maxWaterVolumeBoost
+        );
 
         const baseMoisture = distanceDecay * MOISTURE_TRANSFER_RATE * waterVolumeBoost;
 
@@ -395,10 +426,11 @@ export class MemStorage implements IStorage {
           // Calculate saturation factor: as moisture approaches max, it's harder to add more
           const saturationFactor = 1 - (neighbor.base_moisture / MAX_LAND_MOISTURE);
 
-          // Apply exponential diminishing returns
+          // Apply exponential diminishing returns based on saturation exponent
+          // Lower exponent = less aggressive saturation, allows higher moisture near water
           // Dry cells (low moisture) accept moisture easily
           // Wet cells (high moisture) resist additional moisture
-          const diminishingReturns = Math.pow(saturationFactor, 1.5);
+          const diminishingReturns = Math.pow(saturationFactor, config.saturationExponent);
 
           effectiveTransfer *= diminishingReturns;
         }
@@ -472,15 +504,21 @@ export class MemStorage implements IStorage {
       }
     }
 
+    // TODO: add temperature
+    // TODO: add humidity
+    // TODO: add pressure
+    // TODO: add light
+    // TODO: add air
+    // TODO: add atmosphere
+    // TODO: add weather (rain, snow, etc)
+    // TODO: add seasons
+    // TODO: add day/night cycle
     // TODO: add erosion
+
     // TODO: add grass - and grass mechanincs 
     // TODO: add trees - and tree mechanins
     // TODO: add fruits - and fruit mechanins
-    // TODO: add temperature
-    // TODO: add wind
-    // TODO: add rain
-    // TODO: add snow
-    // TODO: add ice
+
 
     // TODO: add rabbits
     // TODO: add foxes
