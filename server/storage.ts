@@ -1,4 +1,5 @@
 import { type TerrainCell, type TerrainGrid } from "@shared/schema";
+import { WorldGenerator, DEFAULT_WORLD_CONFIG } from "./worldGenerator";
 
 // Month information with daylight hours for seasonal day/night cycles
 interface MonthInfo {
@@ -40,71 +41,6 @@ export interface GameTime {
   daylight_hours: number;
 }
 
-// Simple implementation of Perlin noise for Node.js
-class PerlinNoise {
-  private perm: number[];
-
-  constructor() {
-    this.perm = new Array(512);
-    const permutation = new Array(256)
-      .fill(0)
-      .map((_, i) => i)
-      .sort(() => Math.random() - 0.5);
-
-    for (let i = 0; i < 512; i++) {
-      this.perm[i] = permutation[i & 255];
-    }
-  }
-
-  private fade(t: number): number {
-    return t * t * t * (t * (t * 6 - 15) + 10);
-  }
-
-  private lerp(t: number, a: number, b: number): number {
-    return a + t * (b - a);
-  }
-
-  private grad(hash: number, x: number, y: number): number {
-    const h = hash & 15;
-    const grad2 = 1 + (h & 7);
-    const u = h < 8 ? x : y;
-    const v = h < 4 ? y : x;
-    return (h & 1 ? -u : u) + (h & 2 ? -v : v);
-  }
-
-  noise(x: number, y: number): number {
-    const X = Math.floor(x) & 255;
-    const Y = Math.floor(y) & 255;
-
-    x -= Math.floor(x);
-    y -= Math.floor(y);
-
-    const u = this.fade(x);
-    const v = this.fade(y);
-
-    const A = this.perm[X] + Y;
-    const B = this.perm[X + 1] + Y;
-
-    return (
-      this.lerp(
-        v,
-        this.lerp(
-          u,
-          this.grad(this.perm[A], x, y),
-          this.grad(this.perm[B], x - 1, y),
-        ),
-        this.lerp(
-          u,
-          this.grad(this.perm[A + 1], x, y - 1),
-          this.grad(this.perm[B + 1], x - 1, y - 1),
-        ),
-      ) *
-      0.5 +
-      0.5
-    );
-  }
-}
-
 export interface IStorage {
   getTerrainData(): Promise<TerrainGrid>;
   generateTerrain(): Promise<TerrainGrid>;
@@ -114,7 +50,7 @@ export interface IStorage {
 
 export class MemStorage implements IStorage {
   private terrain: TerrainGrid;
-  private perlin: PerlinNoise;
+  private worldGenerator: WorldGenerator;
   private rivers: River[]; // Array of river objects, each with a name and water points
   private gameTime: GameTime;
   private riverNameCounter: number;
@@ -132,7 +68,7 @@ export class MemStorage implements IStorage {
 
   constructor() {
     this.terrain = [];
-    this.perlin = new PerlinNoise();
+    this.worldGenerator = new WorldGenerator(DEFAULT_WORLD_CONFIG);
     this.rivers = [];
     this.riverNameCounter = 0;
 
@@ -193,11 +129,6 @@ export class MemStorage implements IStorage {
 
   getGameTime(): GameTime {
     return { ...this.gameTime };
-  }
-
-  private mapHeight(value: number): number {
-    // Map from [0,1] to [-200,2200]
-    return value * 2400 - 200;
   }
 
   private getNeighbors(x: number, y: number): TerrainCell[] {
@@ -377,11 +308,13 @@ export class MemStorage implements IStorage {
     // Constants
     const MAX_LAND_MOISTURE = 0.85;
     const MOISTURE_TRANSFER_RATE = 0.025; // base amount spread each tick
-    const ALTITUDE_PENALTY_FACTOR = 0.00025; // per meter climbed
+    const UPHILL_PENALTY_PERCENT = 0.0005; // % reduction per meter when going uphill
+    const ALTITUDE_DRYNESS_PERCENT = 0.0005; // % reduction based on absolute altitude
+    const DOWNHILL_BONUS_PERCENT = 0.0002; // % bonus per meter when going downhill (moisture flows easier)
     const MIN_TRANSFER = 0.0001; // stop propagating below this
-    const MAX_PROPAGATION_DISTANCE = 100; // cells per tick
-    const MAX_CELLS_PROCESSED = 50000; // hard limit on cells processed per tick (increased for full propagation)
-    const BASE_DECAY = 0.99; // global evaporation (1% moisture lost per tick)
+    const MAX_PROPAGATION_DISTANCE = 50; // cells per tick
+    const MAX_CELLS_PROCESSED = 500000; // hard limit on cells processed per tick (increased for full propagation)
+    const BASE_DECAY = 0.98; // global evaporation (1% moisture lost per tick)
 
     // Track visited cells to prevent duplicate processing
     const visited = new Set<string>();
@@ -421,15 +354,54 @@ export class MemStorage implements IStorage {
         // Calculate distance-based moisture (linear decay from source)
         const newDistance = distance + 1;
         const distanceDecay = Math.max(0, 1 - (newDistance * 0.015)); // Decay 1.5% per cell (~67 cell max range)
-        const baseMoisture = distanceDecay * MOISTURE_TRANSFER_RATE;
+
+        // Water volume boost: cells with more water spread moisture more effectively
+        // This simulates larger water bodies having greater influence
+        const waterVolumeBoost = 1.0 + Math.min(cell.water_height * 0.3, 1.5); // Up to 2.5x boost for deep water
+
+        const baseMoisture = distanceDecay * MOISTURE_TRANSFER_RATE * waterVolumeBoost;
 
         if (baseMoisture < MIN_TRANSFER) continue;
 
-        // Calculate altitude penalty
-        const heightDiff = Math.max(0, neighbor.altitude - cell.altitude);
-        const altitudeLoss = heightDiff * ALTITUDE_PENALTY_FACTOR;
+        // Calculate altitude-based moisture modifier (percentage-based)
+        let moistureMultiplier = 1.0;
 
-        const effectiveTransfer = Math.max(0, baseMoisture - altitudeLoss);
+        // 1. Direction-based modifier: uphill vs downhill
+        const heightDiff = neighbor.altitude - cell.altitude;
+        if (heightDiff > 0) {
+          // Going uphill - apply penalty
+          const uphillPenalty = heightDiff * UPHILL_PENALTY_PERCENT;
+          moistureMultiplier -= uphillPenalty;
+        } else if (heightDiff < 0) {
+          // Going downhill - moisture flows easier (bonus)
+          const downhillBonus = Math.abs(heightDiff) * DOWNHILL_BONUS_PERCENT;
+          moistureMultiplier += downhillBonus;
+        }
+
+        // 2. Absolute altitude dryness: higher elevations are naturally drier
+        // This is a percentage reduction based on elevation
+        const altitudeDryness = Math.max(0, neighbor.terrain_height) * ALTITUDE_DRYNESS_PERCENT;
+        moistureMultiplier -= altitudeDryness;
+
+        // Ensure multiplier stays in reasonable bounds
+        moistureMultiplier = Math.max(0.05, Math.min(1.5, moistureMultiplier));
+
+        let effectiveTransfer = baseMoisture * moistureMultiplier;
+
+        // Apply diminishing returns based on existing moisture
+        // Cells with high moisture are harder to increase (saturation effect)
+        // This creates more natural moisture gradients
+        if (neighbor.base_moisture > 0) {
+          // Calculate saturation factor: as moisture approaches max, it's harder to add more
+          const saturationFactor = 1 - (neighbor.base_moisture / MAX_LAND_MOISTURE);
+
+          // Apply exponential diminishing returns
+          // Dry cells (low moisture) accept moisture easily
+          // Wet cells (high moisture) resist additional moisture
+          const diminishingReturns = Math.pow(saturationFactor, 1.5);
+
+          effectiveTransfer *= diminishingReturns;
+        }
 
         if (effectiveTransfer > 0 && neighbor.base_moisture < MAX_LAND_MOISTURE) {
           const newMoisture = Math.min(
@@ -438,7 +410,7 @@ export class MemStorage implements IStorage {
           );
 
           // Only update if we're adding meaningful moisture
-          if (newMoisture > neighbor.base_moisture + 0.0001) {
+          if (newMoisture > neighbor.base_moisture + 0.00001) {
             neighbor.base_moisture = newMoisture;
             neighbor.moisture = newMoisture;
 
@@ -522,68 +494,15 @@ export class MemStorage implements IStorage {
     return this.terrain;
   }
 
-  private selectSpringPoints(): { x: number; y: number }[] {
-    const springs: { x: number; y: number }[] = [];
-    const candidates = [];
-
-    // Find all points with suitable height for springs
-    for (let y = 0; y < this.terrain.length; y++) {
-      for (let x = 0; x < this.terrain[0].length; x++) {
-        const height = this.terrain[y][x].terrain_height;
-        if (height >= 1700 && height <= 1900) {
-          candidates.push({ x, y });
-        }
-      }
-    }
-
-    // Randomly select spring points from candidates
-    while (
-      springs.length < MemStorage.NUMBER_OF_SPRINGS &&
-      candidates.length > 0
-    ) {
-      const idx = Math.floor(Math.random() * candidates.length);
-      springs.push(candidates[idx]);
-      candidates.splice(idx, 1);
-    }
-
-    return springs;
-  }
-
   async generateTerrain(): Promise<TerrainGrid> {
-    // Initialize empty grid
-    this.terrain = Array(MemStorage.GRID_SIZE)
-      .fill(null)
-      .map(() => Array(MemStorage.GRID_SIZE).fill(null));
+    // Regenerate the world with new noise seed
+    this.worldGenerator.regenerate();
 
-    for (let y = 0; y < MemStorage.GRID_SIZE; y++) {
-      for (let x = 0; x < MemStorage.GRID_SIZE; x++) {
-        const noiseVal = this.perlin.noise(
-          x * MemStorage.NOISE_SCALE,
-          y * MemStorage.NOISE_SCALE,
-        );
-        const mappedHeight = this.mapHeight(noiseVal);
-
-        const cell: TerrainCell = {
-          id: y * MemStorage.GRID_SIZE + x,
-          x,
-          y,
-          terrain_height: mappedHeight,
-          water_height: 0,
-          altitude: mappedHeight, // Initially same as terrain_height
-          base_moisture: 0,
-          added_moisture: 0,
-          moisture: 0,
-          type: "rock",
-          distance_from_water: Infinity,
-          river_name: null,
-        };
-
-        this.terrain[y][x] = cell;
-      }
-    }
+    // Generate terrain using the world generator with wrapping noise
+    this.terrain = this.worldGenerator.generateTerrain();
 
     // Select and mark spring points
-    const springs = this.selectSpringPoints();
+    const springs = this.worldGenerator.selectSpringPoints(this.terrain);
     this.rivers = []; // Reset rivers on new terrain generation
 
     // Each spring starts its own river (stream)

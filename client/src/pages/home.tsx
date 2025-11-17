@@ -47,7 +47,7 @@ type CellInfo = {
 };
 
 export default function Home() {
-  const [refreshInterval, setRefreshInterval] = useState(10); // 20 seconds to match server interval
+  const [refreshInterval, setRefreshInterval] = useState(1); // 1 seconds to match server interval
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [timeUntilRefresh, setTimeUntilRefresh] = useState(refreshInterval);
   const [selectedCell, setSelectedCell] = useState<CellInfo | null>(null);

@@ -207,31 +207,35 @@ export function TerrainCanvas({
     const cellWidth = (width / gridSize) * zoomLevel;
     const cellHeight = (height / gridSize) * zoomLevel;
 
+    // Calculate the total world size in pixels
+    const worldWidth = gridSize * cellWidth;
+    const worldHeight = gridSize * cellHeight;
+
+    // Normalize pan offset to wrap around the world (modulo operation)
+    const normalizedPanX = ((panOffset.x % worldWidth) + worldWidth) % worldWidth;
+    const normalizedPanY = ((panOffset.y % worldHeight) + worldHeight) % worldHeight;
+
     // Clear the canvas
     ctx.clearRect(0, 0, width, height);
 
     // Save the context state before applying transformations
     ctx.save();
 
-    // Apply pan offset
-    ctx.translate(panOffset.x, panOffset.y);
+    // Calculate which cells are visible in the viewport with wrapping
+    // We need to render enough to fill the screen, potentially drawing the world multiple times
+    const startX = Math.floor(-normalizedPanX / cellWidth);
+    const startY = Math.floor(-normalizedPanY / cellHeight);
+    const endX = Math.ceil((width - normalizedPanX) / cellWidth);
+    const endY = Math.ceil((height - normalizedPanY) / cellHeight);
 
-    // Calculate which cells are visible in the viewport
-    const startX = Math.max(0, Math.floor(-panOffset.x / cellWidth));
-    const startY = Math.max(0, Math.floor(-panOffset.y / cellHeight));
-    const endX = Math.min(
-      gridSize,
-      Math.ceil((width - panOffset.x) / cellWidth),
-    );
-    const endY = Math.min(
-      gridSize,
-      Math.ceil((height - panOffset.y) / cellHeight),
-    );
-
-    // Only render visible cells for performance
+    // Render cells with wrapping
     for (let y = startY; y < endY; y++) {
       for (let x = startX; x < endX; x++) {
-        const cell = terrain[y][x];
+        // Wrap coordinates to get the actual cell from the terrain grid
+        const wrappedX = ((x % gridSize) + gridSize) % gridSize;
+        const wrappedY = ((y % gridSize) + gridSize) % gridSize;
+
+        const cell = terrain[wrappedY][wrappedX];
         if (!cell) continue;
 
         // Get cell color based on visualization settings
@@ -239,8 +243,8 @@ export function TerrainCanvas({
 
         // Draw cell with zoom and pan applied
         ctx.fillRect(
-          x * cellWidth,
-          y * cellHeight,
+          x * cellWidth + normalizedPanX,
+          y * cellHeight + normalizedPanY,
           cellWidth + 1, // Add 1 to prevent gaps
           cellHeight + 1,
         );
@@ -259,8 +263,8 @@ export function TerrainCanvas({
             ctx.strokeStyle = "rgba(0,0,0,0.5)";
             ctx.lineWidth = 0.5;
             ctx.strokeRect(
-              x * cellWidth,
-              y * cellHeight,
+              x * cellWidth + normalizedPanX,
+              y * cellHeight + normalizedPanY,
               cellWidth,
               cellHeight,
             );
@@ -271,21 +275,36 @@ export function TerrainCanvas({
         if (settings.wireframe) {
           ctx.strokeStyle = "rgba(0,0,0,0.2)";
           ctx.lineWidth = 0.5;
-          ctx.strokeRect(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
+          ctx.strokeRect(
+            x * cellWidth + normalizedPanX,
+            y * cellHeight + normalizedPanY,
+            cellWidth,
+            cellHeight
+          );
         }
 
-        // Highlight the selected cell with a golden border
-        if (selectedCell && selectedCell.x === x && selectedCell.y === y) {
+        // Highlight the selected cell with a golden border (check wrapped coordinates)
+        if (selectedCell && selectedCell.x === wrappedX && selectedCell.y === wrappedY) {
           ctx.strokeStyle = "gold";
           ctx.lineWidth = 3;
-          ctx.strokeRect(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
+          ctx.strokeRect(
+            x * cellWidth + normalizedPanX,
+            y * cellHeight + normalizedPanY,
+            cellWidth,
+            cellHeight
+          );
         }
 
-        // Highlight the hovered cell with a white border
-        if (hoveredCell && hoveredCell.x === x && hoveredCell.y === y) {
+        // Highlight the hovered cell with a white border (check wrapped coordinates)
+        if (hoveredCell && hoveredCell.x === wrappedX && hoveredCell.y === wrappedY) {
           ctx.strokeStyle = "white";
           ctx.lineWidth = 2;
-          ctx.strokeRect(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
+          ctx.strokeRect(
+            x * cellWidth + normalizedPanX,
+            y * cellHeight + normalizedPanY,
+            cellWidth,
+            cellHeight
+          );
         }
       }
     }
@@ -321,7 +340,7 @@ export function TerrainCanvas({
       }
     }
 
-    // Draw viewport indicator
+    // Draw viewport indicator with wrapping support
     const zoomLevel = settings.zoomLevel || 1.0;
     const panOffset = settings.panOffset || { x: 0, y: 0 };
 
@@ -329,48 +348,114 @@ export function TerrainCanvas({
     const cellWidth = (width / gridSize) * zoomLevel;
     const cellHeight = (height / gridSize) * zoomLevel;
 
-    // Calculate viewport bounds in grid space
-    const viewportStartX = -panOffset.x / cellWidth;
-    const viewportStartY = -panOffset.y / cellHeight;
+    // Calculate the total world size in pixels
+    const worldWidth = gridSize * cellWidth;
+    const worldHeight = gridSize * cellHeight;
+
+    // Normalize pan offset to wrap around the world
+    const normalizedPanX = ((panOffset.x % worldWidth) + worldWidth) % worldWidth;
+    const normalizedPanY = ((panOffset.y % worldHeight) + worldHeight) % worldHeight;
+
+    // Calculate viewport bounds in grid space (normalized to [0, gridSize])
+    const viewportStartX = (-normalizedPanX / cellWidth) % gridSize;
+    const viewportStartY = (-normalizedPanY / cellHeight) % gridSize;
     const viewportWidth = width / cellWidth;
     const viewportHeight = height / cellHeight;
 
-    // Draw viewport rectangle on minimap
+    // Normalize viewport start to positive values
+    const normalizedStartX = ((viewportStartX % gridSize) + gridSize) % gridSize;
+    const normalizedStartY = ((viewportStartY % gridSize) + gridSize) % gridSize;
+
+    // Draw viewport rectangle(s) on minimap - may need to draw multiple if wrapping
     ctx.strokeStyle = "rgba(255, 215, 0, 0.9)"; // Gold color
     ctx.lineWidth = 2;
-    ctx.strokeRect(
-      viewportStartX * cellSize,
-      viewportStartY * cellSize,
-      viewportWidth * cellSize,
-      viewportHeight * cellSize
-    );
 
-    // Draw a semi-transparent overlay outside the viewport
-    ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+    // Check if viewport wraps horizontally or vertically
+    const wrapsX = normalizedStartX + viewportWidth > gridSize;
+    const wrapsY = normalizedStartY + viewportHeight > gridSize;
 
-    // Top
-    ctx.fillRect(0, 0, minimapSize, viewportStartY * cellSize);
-    // Bottom
-    ctx.fillRect(
-      0,
-      (viewportStartY + viewportHeight) * cellSize,
-      minimapSize,
-      minimapSize - (viewportStartY + viewportHeight) * cellSize
-    );
-    // Left
-    ctx.fillRect(
-      0,
-      viewportStartY * cellSize,
-      viewportStartX * cellSize,
-      viewportHeight * cellSize
-    );
-    // Right
-    ctx.fillRect(
-      (viewportStartX + viewportWidth) * cellSize,
-      viewportStartY * cellSize,
-      minimapSize - (viewportStartX + viewportWidth) * cellSize,
-      viewportHeight * cellSize
-    );
+    if (!wrapsX && !wrapsY) {
+      // No wrapping - draw single rectangle
+      ctx.strokeRect(
+        normalizedStartX * cellSize,
+        normalizedStartY * cellSize,
+        viewportWidth * cellSize,
+        viewportHeight * cellSize
+      );
+    } else if (wrapsX && !wrapsY) {
+      // Wraps horizontally only - draw two rectangles
+      const rightWidth = gridSize - normalizedStartX;
+      const leftWidth = viewportWidth - rightWidth;
+
+      // Right portion
+      ctx.strokeRect(
+        normalizedStartX * cellSize,
+        normalizedStartY * cellSize,
+        rightWidth * cellSize,
+        viewportHeight * cellSize
+      );
+      // Left portion (wrapped)
+      ctx.strokeRect(
+        0,
+        normalizedStartY * cellSize,
+        leftWidth * cellSize,
+        viewportHeight * cellSize
+      );
+    } else if (!wrapsX && wrapsY) {
+      // Wraps vertically only - draw two rectangles
+      const bottomHeight = gridSize - normalizedStartY;
+      const topHeight = viewportHeight - bottomHeight;
+
+      // Bottom portion
+      ctx.strokeRect(
+        normalizedStartX * cellSize,
+        normalizedStartY * cellSize,
+        viewportWidth * cellSize,
+        bottomHeight * cellSize
+      );
+      // Top portion (wrapped)
+      ctx.strokeRect(
+        normalizedStartX * cellSize,
+        0,
+        viewportWidth * cellSize,
+        topHeight * cellSize
+      );
+    } else {
+      // Wraps both horizontally and vertically - draw four rectangles
+      const rightWidth = gridSize - normalizedStartX;
+      const leftWidth = viewportWidth - rightWidth;
+      const bottomHeight = gridSize - normalizedStartY;
+      const topHeight = viewportHeight - bottomHeight;
+
+      // Bottom-right
+      ctx.strokeRect(
+        normalizedStartX * cellSize,
+        normalizedStartY * cellSize,
+        rightWidth * cellSize,
+        bottomHeight * cellSize
+      );
+      // Bottom-left
+      ctx.strokeRect(
+        0,
+        normalizedStartY * cellSize,
+        leftWidth * cellSize,
+        bottomHeight * cellSize
+      );
+      // Top-right
+      ctx.strokeRect(
+        normalizedStartX * cellSize,
+        0,
+        rightWidth * cellSize,
+        topHeight * cellSize
+      );
+      // Top-left
+      ctx.strokeRect(
+        0,
+        0,
+        leftWidth * cellSize,
+        topHeight * cellSize
+      );
+    }
   }, [terrain, width, height, settings, getCellColor]);
 
   // Mouse move handler to determine hovered cell
@@ -394,29 +479,38 @@ export function TerrainCanvas({
     const cellWidth = (width / gridSize) * zoomLevel;
     const cellHeight = (height / gridSize) * zoomLevel;
 
-    // Adjust mouse coordinates for zoom and pan
-    const adjustedMouseX = (mouseX - panOffset.x) / zoomLevel;
-    const adjustedMouseY = (mouseY - panOffset.y) / zoomLevel;
+    // Calculate the total world size in pixels
+    const worldWidth = gridSize * cellWidth;
+    const worldHeight = gridSize * cellHeight;
 
-    const cellX = Math.floor(adjustedMouseX / (width / gridSize));
-    const cellY = Math.floor(adjustedMouseY / (height / gridSize));
+    // Normalize pan offset to wrap around the world
+    const normalizedPanX = ((panOffset.x % worldWidth) + worldWidth) % worldWidth;
+    const normalizedPanY = ((panOffset.y % worldHeight) + worldHeight) % worldHeight;
 
-    // Check if coordinates are within bounds
-    if (cellX >= 0 && cellX < gridSize && cellY >= 0 && cellY < gridSize) {
-      const cell = terrain[cellY][cellX];
-      if (cell) {
-        setHoveredCell({
-          cell,
-          x: cellX,
-          y: cellY,
-          screenX: mouseX,
-          screenY: mouseY,
-        });
-        return;
-      }
+    // Adjust mouse coordinates for zoom and pan with wrapping
+    const adjustedMouseX = mouseX - normalizedPanX;
+    const adjustedMouseY = mouseY - normalizedPanY;
+
+    // Calculate cell coordinates
+    const rawCellX = Math.floor(adjustedMouseX / cellWidth);
+    const rawCellY = Math.floor(adjustedMouseY / cellHeight);
+
+    // Wrap cell coordinates to grid bounds
+    const cellX = ((rawCellX % gridSize) + gridSize) % gridSize;
+    const cellY = ((rawCellY % gridSize) + gridSize) % gridSize;
+
+    const cell = terrain[cellY][cellX];
+    if (cell) {
+      setHoveredCell({
+        cell,
+        x: cellX,
+        y: cellY,
+        screenX: mouseX,
+        screenY: mouseY,
+      });
+    } else {
+      setHoveredCell(null);
     }
-
-    setHoveredCell(null);
   };
 
   const handleMouseLeave = () => {
@@ -532,40 +626,52 @@ export function TerrainCanvas({
 
     // Calculate cell coordinates accounting for zoom and pan
     const gridSize = terrain.length;
+    const cellWidth = (width / gridSize) * zoomLevel;
+    const cellHeight = (height / gridSize) * zoomLevel;
 
-    // Adjust mouse coordinates for zoom and pan
-    const adjustedMouseX = (mouseX - panOffset.x) / zoomLevel;
-    const adjustedMouseY = (mouseY - panOffset.y) / zoomLevel;
+    // Calculate the total world size in pixels
+    const worldWidth = gridSize * cellWidth;
+    const worldHeight = gridSize * cellHeight;
 
-    const cellX = Math.floor(adjustedMouseX / (width / gridSize));
-    const cellY = Math.floor(adjustedMouseY / (height / gridSize));
+    // Normalize pan offset to wrap around the world
+    const normalizedPanX = ((panOffset.x % worldWidth) + worldWidth) % worldWidth;
+    const normalizedPanY = ((panOffset.y % worldHeight) + worldHeight) % worldHeight;
 
-    // Check if coordinates are within bounds
-    if (cellX >= 0 && cellX < gridSize && cellY >= 0 && cellY < gridSize) {
-      const cell = terrain[cellY][cellX];
-      if (cell) {
-        const cellInfo = {
-          cell,
-          x: cellX,
-          y: cellY,
-          screenX: mouseX,
-          screenY: mouseY,
-        };
+    // Adjust mouse coordinates for zoom and pan with wrapping
+    const adjustedMouseX = mouseX - normalizedPanX;
+    const adjustedMouseY = mouseY - normalizedPanY;
 
-        // Toggle selection - if clicking on the same cell, deselect it
-        if (
-          selectedCell &&
-          selectedCell.x === cellX &&
-          selectedCell.y === cellY
-        ) {
-          setSelectedCell(null);
-          // Notify parent component if callback is provided
-          if (onCellSelect) onCellSelect(null);
-        } else {
-          setSelectedCell(cellInfo);
-          // Notify parent component if callback is provided
-          if (onCellSelect) onCellSelect(cellInfo);
-        }
+    // Calculate cell coordinates
+    const rawCellX = Math.floor(adjustedMouseX / cellWidth);
+    const rawCellY = Math.floor(adjustedMouseY / cellHeight);
+
+    // Wrap cell coordinates to grid bounds
+    const cellX = ((rawCellX % gridSize) + gridSize) % gridSize;
+    const cellY = ((rawCellY % gridSize) + gridSize) % gridSize;
+
+    const cell = terrain[cellY][cellX];
+    if (cell) {
+      const cellInfo = {
+        cell,
+        x: cellX,
+        y: cellY,
+        screenX: mouseX,
+        screenY: mouseY,
+      };
+
+      // Toggle selection - if clicking on the same cell, deselect it
+      if (
+        selectedCell &&
+        selectedCell.x === cellX &&
+        selectedCell.y === cellY
+      ) {
+        setSelectedCell(null);
+        // Notify parent component if callback is provided
+        if (onCellSelect) onCellSelect(null);
+      } else {
+        setSelectedCell(cellInfo);
+        // Notify parent component if callback is provided
+        if (onCellSelect) onCellSelect(cellInfo);
       }
     }
   };
