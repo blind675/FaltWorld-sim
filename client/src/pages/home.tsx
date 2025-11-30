@@ -243,6 +243,12 @@ export default function Home() {
 
                     <div className="font-semibold">Moisture:</div>
                     <div>{selectedCell.cell.moisture.toFixed(2)}</div>
+
+                    <div className="font-semibold flex items-center gap-1">
+                      <Thermometer className="h-4 w-4" />
+                      Temperature:
+                    </div>
+                    <div>{selectedCell.cell.temperature.toFixed(1)}°C</div>
                   </div>
                 </div>
               )}
