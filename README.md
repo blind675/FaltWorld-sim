@@ -28,18 +28,19 @@ A web-based procedural world generation and simulation system with dynamic water
   - Date display with month name, day, and year
   - Day/night indicator with sun/moon icons and status badge
   - Daylight hours information
+- **Temperature System**:
+  - Temperature calculation based on altitude (lapse rate: -6°C per 1000m)
+  - Latitude-dependent base temperature (28°C at equator, -12°C at poles)
+  - Seasonal variation with reversed seasons between hemispheres (north/south poles)
+  - Precomputed seasonal factor for performance (single calculation per tick)
+  - Realistic temperature ranges: 2°C seasonal amplitude at equator, 15°C at poles
+  - Scales to large maps (90k cells per update cycle)
 
 ### Known Issues
 - River visualization could be enhanced with better stream tracking
 
 ### Next Steps
-- **Add temperature system** (Priority):
-  - Temperature dependent on altitude (higher altitude = colder)
-  - Temperature dependent on distance to poles (top and bottom of map)
-  - Temperature dependent on season (winter months colder than summer)
-  - Seasonality is reversed between top and bottom of map (north vs south pole effects)
-  - Very low seasonal effect in the middle of the map
-  - Create temperature map for visualization
+- Create temperature map visualization (showing temperature data on canvas)
 - Add erosion effects beyond water-based erosion
 - Add grass with growth mechanics
 - Add trees with growth and fruit production

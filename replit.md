@@ -52,6 +52,7 @@ Preferred communication style: Simple, everyday language.
 - Moisture distribution from water sources with distance-based falloff
 - Time progression with automatic hour->day->month->year overflow handling
 - Seasonal daylight calculation based on month-specific daylight hours (January/December: 8 hours, June: 16 hours)
+- Temperature calculation combining altitude lapse rate (-6°C/1000m), latitude-based base temperature (28°C equator to -12°C poles), and seasonal variation with reversed hemispheres
 
 ### Data Storage
 

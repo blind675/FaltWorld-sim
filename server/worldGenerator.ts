@@ -252,6 +252,7 @@ export class WorldGenerator {
                     base_moisture: 0,
                     added_moisture: 0,
                     moisture: 0,
+                    temperature: 0,
                     type: "rock",
                     distance_from_water: Infinity,
                     river_name: null,

@@ -1,5 +1,6 @@
 import { type TerrainCell, type TerrainGrid } from "@shared/schema";
 import { WorldGenerator, DEFAULT_WORLD_CONFIG } from "./worldGenerator";
+import { getTemperature, computeSeasonCos } from "./temperature";
 
 // Month information with daylight hours for seasonal day/night cycles
 interface MonthInfo {
@@ -504,7 +505,9 @@ export class MemStorage implements IStorage {
       }
     }
 
-    // TODO: add temperature
+    // Update temperature for all cells
+    this.updateTemperature();
+
     // TODO: add humidity
     // TODO: add pressure
     // TODO: add light
@@ -525,6 +528,32 @@ export class MemStorage implements IStorage {
     // TODO: add bears
     // TODO: add humans
 
+  }
+
+  private updateTemperature(): void {
+    // Calculate year progress as fraction of year (0 to 1)
+    // 12 months * 30 days * 24 hours = 8640 hours per year
+    const hourOfYear = ((this.gameTime.month - 1) * MemStorage.DAYS_PER_MONTH * MemStorage.HOURS_PER_DAY) +
+                       ((this.gameTime.day - 1) * MemStorage.HOURS_PER_DAY) +
+                       this.gameTime.hour;
+    const hoursPerYear = MemStorage.MONTHS_PER_YEAR * MemStorage.DAYS_PER_MONTH * MemStorage.HOURS_PER_DAY;
+    const yearProgress = (hourOfYear % hoursPerYear) / hoursPerYear;
+
+    // Precompute seasonal cos factor once per tick
+    const seasonCos = computeSeasonCos(yearProgress);
+
+    // Update temperature for each cell
+    const height = this.terrain.length;
+    const width = this.terrain[0].length;
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const cell = this.terrain[y][x];
+        // Convert from game units to meters: terrain_height ranges roughly -200 to 3000
+        const altitudeMeters = cell.terrain_height;
+        cell.temperature = getTemperature(x, y, altitudeMeters, width, height, seasonCos);
+      }
+    }
   }
 
   async getTerrainData(): Promise<TerrainGrid> {
@@ -553,6 +582,7 @@ export class MemStorage implements IStorage {
         cell.water_height = 1;
         cell.altitude = cell.terrain_height + cell.water_height;
         cell.distance_from_water = 0;
+        cell.temperature = 0;
 
         // Create a new river starting from this spring
         const riverName = this.generateRiverName();
