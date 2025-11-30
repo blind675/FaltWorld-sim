@@ -33,10 +33,16 @@ A web-based procedural world generation and simulation system with dynamic water
 - River visualization could be enhanced with better stream tracking
 
 ### Next Steps
+- **Add temperature system** (Priority):
+  - Temperature dependent on altitude (higher altitude = colder)
+  - Temperature dependent on distance to poles (top and bottom of map)
+  - Temperature dependent on season (winter months colder than summer)
+  - Seasonality is reversed between top and bottom of map (north vs south pole effects)
+  - Very low seasonal effect in the middle of the map
+  - Create temperature map for visualization
 - Add erosion effects beyond water-based erosion
 - Add grass with growth mechanics
 - Add trees with growth and fruit production
-- Add temperature and climate systems
 - Add weather (rain, snow, wind effects)
 - Add wildlife (rabbits, foxes, wolves, bears, birds)
 - Add player-controllable entities
