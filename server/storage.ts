@@ -511,8 +511,7 @@ export class MemStorage implements IStorage {
     // TODO: add air
     // TODO: add atmosphere
     // TODO: add weather (rain, snow, etc)
-    // TODO: add seasons
-    // TODO: add day/night cycle
+    // Note: Seasonal day/night cycles with daylight hours are implemented
     // TODO: add erosion
 
     // TODO: add grass - and grass mechanincs 

@@ -4,7 +4,7 @@
 
 World Simulator is a web-based procedural world generation and simulation system. The application generates terrain using Perlin noise, simulates natural phenomena like water flow and erosion, and provides an interactive visualization of the generated world. Built with a React frontend and Express backend, it features real-time terrain updates and a comprehensive visualization system with multiple display modes.
 
-The system is designed to simulate a living world with environmental systems including terrain generation, hydrology (springs, rivers, water accumulation), land erosion, moisture distribution, and a comprehensive time system with seasonal day/night cycles. Future plans include vegetation systems, weather patterns, and temperature modeling.
+The system is designed to simulate a living world with environmental systems including terrain generation, hydrology (springs, rivers, water accumulation), land erosion, moisture distribution, and a comprehensive time system with seasonal day/night cycles. An interactive animated game clock displays the current in-game time with smooth minute hand animation. Future plans include vegetation systems, weather patterns, temperature modeling, and player-controllable entities.
 
 ## User Preferences
 
@@ -25,6 +25,7 @@ Preferred communication style: Simple, everyday language.
 - **Component-based visualization**: Custom TerrainCanvas component handles all world rendering with configurable visualization settings (elevation maps, moisture maps, river overlays, contour lines)
 - **Real-time updates**: Polling mechanism refreshes terrain data from the server at configurable intervals to show world evolution
 - **Interactive controls**: Comprehensive settings panel allows users to toggle various visualization modes, adjust display parameters, and inspect individual cells
+- **Game clock component**: GameClock displays current in-game time with animated analog clock hands, date/time information, daylight hours, and day/night status indicator
 - **Responsive design**: Mobile-first approach using Tailwind's responsive utilities and shadcn/ui components
 
 ### Backend Architecture
