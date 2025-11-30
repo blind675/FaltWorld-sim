@@ -1,57 +1,43 @@
-# World Simulator #
+# World Simulator
 
-This is a project intended to simultate a world with all the masic systems in it. 
+A web-based procedural world generation and simulation system with dynamic water flow, terrain evolution, and an interactive game clock with seasonal day/night cycles.
 
-Project state 
+## Project Status
 
-- Implemented: 	
-	- wrapping world grid
-  	- Perlin noise land generation
-	- random springs generation 
- 	- water flow
-	- water accumulation and land erosion
-	- land moisture 
+### Implemented Features
+- **Terrain Generation**: Wrapping world grid with Perlin noise-based height generation
+- **Hydrology System**: 
+  - Random springs generation
+  - Water flow simulation with river tracking
+  - Water accumulation and land erosion
+  - River merging when streams meet
+  - Named river system with unique river tracking
+- **Moisture System**: 
+  - Moisture propagation from water sources
+  - Altitude-based moisture modifiers
+  - Evaporation and diminishing returns mechanics
+- **Time System**: 
+  - Complete time tracking with years, months (30 days each), days, hours, and minutes
+  - Each server tick = 1 hour of in-game time
+  - Seasonal day/night cycles with month-specific daylight hours (8-16 hours)
+  - Day starts at 6 AM and lasts for the month's daylight hours
+- **Game Clock**: 
+  - Interactive animated analog clock with hour and minute hands
+  - Smooth minute hand animation synchronized with server ticks
+  - Digital time display showing hour:minute format
+  - Date display with month name, day, and year
+  - Day/night indicator with sun/moon icons and status badge
+  - Daylight hours information
 
-Bugs:
-The river water flow is not correct:
-   TODO: change from water points of rivers to use arrays instead, use an array of arrays where each array is a river and each river is an array of cells.
+### Known Issues
+- River visualization could be enhanced with better stream tracking
 
-- Next steps:
-  - Implement time: 
-    - TODO: we have the concept of tick, the server updates every x time (5 min is the default, but this changes for debug purposes). We need to implement a time system with years, months, days, hours, and minutes. We can have it such that each system update (tick) is an hour in game time. We should also create a yearly season system that determines the day(light) / night(dark) cycle; in other words, the length of the day should be determined by the month/season. We could use the array : 
-[
-  { "month": "January", "month_number": 1, "daylight_hours": 8 },
-  { "month": "February", "month_number": 2, "daylight_hours": 9 },
-  { "month": "March", "month_number": 3, "daylight_hours": 12 },
-  { "month": "April", "month_number": 4, "daylight_hours": 13 },
-  { "month": "May", "month_number": 5, "daylight_hours": 15 },
-  { "month": "June", "month_number": 6, "daylight_hours": 16 },
-  { "month": "July", "month_number": 7, "daylight_hours": 15 },
-  { "month": "August", "month_number": 8, "daylight_hours": 14 },
-  { "month": "September", "month_number": 9, "daylight_hours": 12 },
-  { "month": "October", "month_number": 10, "daylight_hours": 10 },
-  { "month": "November", "month_number": 11, "daylight_hours": 9 },
-  { "month": "December", "month_number": 12, "daylight_hours": 8 }
-]
-
-Maybe we could name this array months info or similar.
-
-This can be implemented in the server as an updated data structure with all the time values and whether it's night or day(light)
-
-    - TODO: We should also send this data from the server to the client and display it somewhere. Maybe showing something like a clock for the current time that animates from one hour to the next one (the minute hands), and the animation takes as long as the backend update takes. We also need to send this information to the client.
-
-   - // TODO: add erosion
-   -  // TODO: add grass - and grass mechanics 
-   -  // TODO: add trees - and tree mechanisms
-   -  // TODO: add fruits - and fruit mechanisms
-   -  // TODO: add temperature
-   -  // TODO: add wind
-   -  // TODO: add rain
-   -  // TODO: add snow
-   -  // TODO: add ice
-
-   -  // TODO: add rabbits
-   -  // TODO: add foxes
-   -  // TODO: add wolves
-   -  // TODO: add bears
-   -  // TODO: add humans
+### Next Steps
+- Add erosion effects beyond water-based erosion
+- Add grass with growth mechanics
+- Add trees with growth and fruit production
+- Add temperature and climate systems
+- Add weather (rain, snow, wind effects)
+- Add wildlife (rabbits, foxes, wolves, bears, birds)
+- Add player-controllable entities
+- Add ice and seasonal precipitation systems
