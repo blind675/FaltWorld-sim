@@ -69,7 +69,7 @@ app.use((req, res, next) => {
   // Start periodic task after server is ready
   startPeriodicTask();
 
-  const PORT = 5001;
+  const PORT = 5000;
   server.listen(PORT, "0.0.0.0", () => {
     log(`serving on port ${PORT}`);
   });

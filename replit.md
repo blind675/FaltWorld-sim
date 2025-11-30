@@ -4,7 +4,7 @@
 
 World Simulator is a web-based procedural world generation and simulation system. The application generates terrain using Perlin noise, simulates natural phenomena like water flow and erosion, and provides an interactive visualization of the generated world. Built with a React frontend and Express backend, it features real-time terrain updates and a comprehensive visualization system with multiple display modes.
 
-The system is designed to simulate a living world with environmental systems including terrain generation, hydrology (springs, rivers, water accumulation), land erosion, moisture distribution, and a comprehensive time system with seasonal day/night cycles. An interactive animated game clock displays the current in-game time with smooth minute hand animation. Future plans include vegetation systems, weather patterns, temperature modeling, and player-controllable entities.
+The system is designed to simulate a living world with environmental systems including terrain generation, hydrology (springs, rivers, water accumulation), land erosion, moisture distribution, comprehensive time system with seasonal day/night cycles, and realistic temperature simulation. An interactive animated game clock displays the current in-game time with smooth minute hand animation. The world features 4 alternating temperature zones (cold-warm-cold-warm) that wrap seamlessly on the circular map, simulating a globe with multiple climate regions. Future plans include vegetation systems, weather patterns, and player-controllable entities.
 
 ## User Preferences
 
@@ -52,7 +52,12 @@ Preferred communication style: Simple, everyday language.
 - Moisture distribution from water sources with distance-based falloff
 - Time progression with automatic hour->day->month->year overflow handling
 - Seasonal daylight calculation based on month-specific daylight hours (January/December: 8 hours, June: 16 hours)
-- Temperature calculation combining altitude lapse rate (-6°C/1000m), latitude-based base temperature (28°C equator to -12°C poles), and seasonal variation with reversed hemispheres
+- **Temperature system with 4 alternating zones**: Uses sin(2θ) function to create warm-cold-warm-cold pattern on circular map
+  - Warm zones: 25°C base temperature
+  - Cold zones (poles): -8°C base temperature
+  - Altitude lapse rate: -6°C per 1000m (higher elevations are colder)
+  - Seasonal variation: 2-12°C amplitude depending on zone proximity
+  - Seamless wrapping: Warm zone at bottom of map connects to warm zone at top for globe simulation
 
 ### Data Storage
 
