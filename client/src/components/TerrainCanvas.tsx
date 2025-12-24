@@ -9,7 +9,7 @@ export interface VisualizationSettings {
   exaggerateHeight: number; // 1.0 is normal, higher values exaggerate the height differences
   contourLines: boolean;
   contourInterval: number; // Interval for contour lines
-  colorMode: "default" | "heightmap" | "moisture" | "temperature";
+  colorMode: "default" | "heightmap" | "moisture" | "temperature" | "humidity";
   wireframe: boolean;
   zoomLevel: number; // 1.0 is normal, higher values zoom in
   panOffset: { x: number; y: number }; // Offset for panning
@@ -107,18 +107,67 @@ export function TerrainCanvas({
       return `rgb(${r}, ${g}, ${b})`;
     }
 
-    // If we're using temperature mode (estimated based on altitude)
+    // If we're using temperature mode, show actual temperature
     if (settings.colorMode === "temperature") {
-      // Approximate temperature based on altitude (higher = colder)
-      const normalizedAltitude = (cell.altitude + 200) / 2400;
-      // Inverse for temperature (higher altitude = lower temp)
-      const temperature = 1 - normalizedAltitude * settings.exaggerateHeight;
+      // Use actual temperature from cell (ranges approximately -20°C to +30°C)
+      // Normalize to 0-1 range for color mapping
+      const minTemp = -20;
+      const maxTemp = 30;
+      const normalizedTemp = (cell.temperature - minTemp) / (maxTemp - minTemp);
+      const clampedTemp = Math.max(0, Math.min(1, normalizedTemp));
 
-      // Red (hot) to blue (cold) gradient
-      const r = Math.floor(255 * temperature);
-      const g = Math.floor(100 * temperature);
-      const b = Math.floor(255 * (1 - temperature));
-      return `rgb(${r}, ${g}, ${b})`;
+      // Color gradient: Blue (cold) → Cyan → Green → Yellow → Red (hot)
+      if (clampedTemp < 0.25) {
+        // Blue to Cyan (very cold: -20°C to -7.5°C)
+        const factor = clampedTemp * 4;
+        const r = 0;
+        const g = Math.floor(255 * factor);
+        const b = 255;
+        return `rgb(${r}, ${g}, ${b})`;
+      } else if (clampedTemp < 0.5) {
+        // Cyan to Green (cold: -7.5°C to +5°C)
+        const factor = (clampedTemp - 0.25) * 4;
+        const r = 0;
+        const g = 255;
+        const b = Math.floor(255 * (1 - factor));
+        return `rgb(${r}, ${g}, ${b})`;
+      } else if (clampedTemp < 0.75) {
+        // Green to Yellow (moderate: +5°C to +17.5°C)
+        const factor = (clampedTemp - 0.5) * 4;
+        const r = Math.floor(255 * factor);
+        const g = 255;
+        const b = 0;
+        return `rgb(${r}, ${g}, ${b})`;
+      } else {
+        // Yellow to Red (hot: +17.5°C to +30°C)
+        const factor = (clampedTemp - 0.75) * 4;
+        const r = 255;
+        const g = Math.floor(255 * (1 - factor));
+        const b = 0;
+        return `rgb(${r}, ${g}, ${b})`;
+      }
+    }
+
+    // If we're using humidity mode, show air humidity
+    if (settings.colorMode === "humidity") {
+      // Air humidity gradient: tan (dry) → light blue → deep blue (saturated)
+      const humidityValue = Math.min(1, Math.max(0, cell.air_humidity));
+
+      if (humidityValue < 0.5) {
+        // 0% to 50%: Light tan (245, 222, 179) to light blue (173, 216, 230)
+        const factor = humidityValue * 2; // 0 to 1
+        const r = Math.floor(245 - (245 - 173) * factor);
+        const g = Math.floor(222 - (222 - 216) * factor);
+        const b = Math.floor(179 + (230 - 179) * factor);
+        return `rgb(${r}, ${g}, ${b})`;
+      } else {
+        // 50% to 100%: Light blue (173, 216, 230) to deep blue (0, 0, 139)
+        const factor = (humidityValue - 0.5) * 2; // 0 to 1
+        const r = Math.floor(173 - 173 * factor);
+        const g = Math.floor(216 - 216 * factor);
+        const b = Math.floor(230 - (230 - 139) * factor);
+        return `rgb(${r}, ${g}, ${b})`;
+      }
     }
 
     // Default visualization mode (original logic)
@@ -517,44 +566,6 @@ export function TerrainCanvas({
     setHoveredCell(null);
   };
 
-  // Wheel handler for zooming
-  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-
-    if (!terrain.length) return;
-
-    // Get the current settings
-    const currentZoom = settings.zoomLevel || 1.0;
-    const currentPan = settings.panOffset || { x: 0, y: 0 };
-
-    // Calculate zoom change based on wheel delta
-    // Negative delta means zoom in, positive means zoom out
-    const zoomChange = e.deltaY < 0 ? 0.1 : -0.1;
-    // Apply zoom with limits (min 1.5x, max 3.0x)
-    const newZoom = Math.max(1.5, Math.min(3.0, currentZoom + zoomChange));
-
-    // Get mouse position relative to canvas
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-
-    // Adjust pan to keep the point under the mouse fixed during zoom
-    // This makes the zoom feel centered on the mouse pointer
-    const newPanX = mouseX - (mouseX - currentPan.x) * (newZoom / currentZoom);
-    const newPanY = mouseY - (mouseY - currentPan.y) * (newZoom / currentZoom);
-
-    // Update the visualization settings with new zoom and pan
-    if (onVisualizationSettingsChange) {
-      onVisualizationSettingsChange({
-        ...settings,
-        zoomLevel: newZoom,
-        panOffset: { x: newPanX, y: newPanY },
-      });
-    }
-  };
 
   // Mouse down handler for panning
   const [isPanning, setIsPanning] = useState(false);
@@ -686,7 +697,6 @@ export function TerrainCanvas({
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
-        onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right click
       />
@@ -750,6 +760,18 @@ export function TerrainCanvas({
             Moisture:{" "}
             <span className="font-medium">
               {hoveredCell.cell.moisture?.toFixed(2)}
+            </span>
+          </div>
+          <div>
+            Temperature:{" "}
+            <span className="font-medium">
+              {hoveredCell.cell.temperature?.toFixed(1)}°C
+            </span>
+          </div>
+          <div>
+            Air Humidity:{" "}
+            <span className="font-medium">
+              {((hoveredCell.cell.air_humidity || 0) * 100).toFixed(1)}%
             </span>
           </div>
         </div>

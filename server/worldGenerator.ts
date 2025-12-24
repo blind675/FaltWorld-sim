@@ -1,4 +1,5 @@
 import { type TerrainCell, type TerrainGrid } from "@shared/schema";
+import { type WorldConfig, DEFAULT_WORLD_CONFIG } from "./config";
 
 /**
  * Wrapping Perlin Noise implementation for seamless circular world generation
@@ -191,26 +192,6 @@ class WrappingPerlinNoise {
     }
 }
 
-export interface WorldConfig {
-    gridSize: number;
-    noiseScale: number;
-    numberOfSprings: number;
-    minHeight: number;
-    maxHeight: number;
-    springMinHeight: number;
-    springMaxHeight: number;
-}
-
-export const DEFAULT_WORLD_CONFIG: WorldConfig = {
-    gridSize: 300,
-    noiseScale: 0.003, // Matches Unity terrainFrequency
-    numberOfSprings: 6,
-    minHeight: -200,
-    maxHeight: 2000, // Matches Unity MAX_HEIGHT_VALUE
-    springMinHeight: 1400,
-    springMaxHeight: 1900,
-};
-
 export class WorldGenerator {
     private perlin: WrappingPerlinNoise;
     private config: WorldConfig;
@@ -253,6 +234,7 @@ export class WorldGenerator {
                     added_moisture: 0,
                     moisture: 0,
                     temperature: 0,
+                    air_humidity: 0,
                     type: "rock",
                     distance_from_water: Infinity,
                     river_name: null,

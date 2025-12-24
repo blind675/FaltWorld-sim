@@ -14,6 +14,7 @@ export const terrainCells = pgTable("terrain_cells", {
   added_moisture: real("added_moisture").notNull(),
   moisture: real("moisture").notNull(),
   temperature: real("temperature").notNull().default(0),
+  air_humidity: real("air_humidity").notNull().default(0),
   type: text("type").notNull(),
   river_name: text("river_name"),
 });

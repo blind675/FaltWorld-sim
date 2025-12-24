@@ -1,58 +1,45 @@
 /**
- * Temperature System for World Simulator
+ * Simplified Temperature System for World Simulator
  * 
- * Temperature calculation depends on:
- * - Altitude: Higher elevations are colder (lapse rate)
- * - Latitude: Distance from temperature zones affects base temperature
- * - Season: Annual cycle creates seasonal variation
- * - Zones: Four alternating temperature zones (cold-warm-cold-warm) wrap seamlessly
+ * Temperature calculation:
+ * 1. Base Temperature: Monthly day/night temps at equator (sea level)
+ * 2. Latitude Modifier: Temperature drops as you move north/south from equator
+ * 3. Altitude Modifier: Temperature drops with elevation (lapse rate)
+ * 4. Day/Night Cycle: Smooth transition between day and night temps throughout the day
  * 
- * The world has a wrapped vertical axis (cylindrical map with 4 zones):
- * - Zone 1 (top ~1/4): Warm zone gradually cooling
- * - Zone 2 (2nd ~1/4): Cold zone (pole)
- * - Zone 3 (3rd ~1/4): Warm zone gradually warming
- * - Zone 4 (bottom ~1/4): Cold zone (pole)
- * - Zones wrap seamlessly: warm zone at bottom connects to warm zone at top
- * - Seasonal effects vary by latitude/zone
+ * The world wraps seamlessly in both directions (toroidal topology)
  */
 
 // Temperature Constants
 export const TEMPERATURE_CONFIG = {
-  // Base temperatures (sea level, no season)
-  T_WARM_ZONE: 25,         // Temperature in warm zones in °C
-  T_COLD_ZONE: -8,         // Temperature in cold zones (poles) in °C
+  // Latitude effect: temperature drop per unit distance from equator
+  LATITUDE_COOLING: 40,    // °C drop from equator to pole (max cooling)
 
   // Altitude lapse rate
   LAPSE_RATE: -0.006,      // °C per meter (≈ -6°C per 1000m)
 
-  // Seasonal amplitude (how much temperature swings with seasons)
-  A_MIN: 2,                // Amplitude in warm zones in °C
-  A_MAX: 12,               // Amplitude in cold zones in °C
+  // Day/night cycle timing
+  PEAK_DAY_HOUR: 14,       // Hour of maximum daily temperature (2 PM)
+  PEAK_NIGHT_HOUR: 3,      // Hour of minimum daily temperature (3 AM)
 };
 
 /**
- * Calculates temperature for a single terrain cell
+ * Calculates temperature for a single terrain cell using simplified algorithm
  * 
  * @param x - X coordinate on the map [0, worldWidth)
  * @param y - Y coordinate on the map [0, worldHeight)
  * @param altitudeMeters - Altitude in meters (sea level = 0, can be negative)
  * @param worldWidth - Total map width in cells
  * @param worldHeight - Total map height in cells
- * @param seasonCos - Precomputed cos(2π * (yearProgress - 0.5)) value
+ * @param monthTempDay - Day temperature for current month at equator, sea level (°C)
+ * @param monthTempNight - Night temperature for current month at equator, sea level (°C)
+ * @param currentHour - Current hour of the day (0-23)
  * @returns Temperature in °C
  * 
- * Formula breakdown with 4 alternating temperature zones:
- * 1. Calculate zone position using sin(2*theta) to create 4 zones
- * 2. Base temp: T_WARM_ZONE or T_COLD_ZONE based on zone and distance from pole/equator
- * 3. Altitude: LAPSE_RATE * altitude (colder higher up)
- * 4. Season: amplitude varies by zone, with seasonal oscillation
- * 
- * Zone pattern (as y increases from 0 to worldHeight):
- * - y ≈ 0-25%: Warm zone (gradually cooling toward pole)
- * - y ≈ 25-50%: Cold zone (pole, gradually warming away)
- * - y ≈ 50-75%: Warm zone (gradually warming away from pole)
- * - y ≈ 75-100%: Cold zone (pole, gradually cooling toward equator)
- * Wraps seamlessly: warm zone at 100% connects to warm zone at 0%
+ * Algorithm:
+ * 1. Calculate base temperature from monthly day/night temps and current hour
+ * 2. Apply latitude cooling (distance from equator)
+ * 3. Apply altitude cooling (lapse rate)
  */
 export function getTemperature(
   x: number,
@@ -60,65 +47,42 @@ export function getTemperature(
   altitudeMeters: number,
   worldWidth: number,
   worldHeight: number,
-  seasonCos: number
+  monthTempDay: number,
+  monthTempNight: number,
+  currentHour: number
 ): number {
-  // Calculate position on wrapped vertical axis using 4-zone pattern
-  // theta ranges from 0 to 2π as y goes from 0 to worldHeight
+  // 1. Calculate base temperature with day/night cycle
+  // Use smooth cosine interpolation between night and day temps
+  // Peak day temp at PEAK_DAY_HOUR (14:00), peak night temp at PEAK_NIGHT_HOUR (3:00)
+
+  // Calculate hours since peak night (3 AM)
+  let hoursSincePeakNight = currentHour - TEMPERATURE_CONFIG.PEAK_NIGHT_HOUR;
+  if (hoursSincePeakNight < 0) hoursSincePeakNight += 24;
+
+  // Map to 0-2π cycle (0 at night peak, π at day peak, 2π back to night peak)
+  const dayNightAngle = (hoursSincePeakNight / 24) * 2 * Math.PI;
+
+  // Cosine oscillates from -1 (night) to +1 (day)
+  const dayNightFactor = (1 - Math.cos(dayNightAngle)) / 2; // 0 at night, 1 at day
+
+  // Interpolate between night and day temperatures
+  const baseTemp = monthTempNight + (monthTempDay - monthTempNight) * dayNightFactor;
+
+  // 2. Calculate latitude modifier (distance from equator)
+  // Use sin²(theta/2) for smooth wrapping on toroidal world
   const theta = (y / worldHeight) * 2 * Math.PI;
-  
-  // Use sin(2*theta) to create 4 alternating zones instead of 2 poles
-  // This oscillates twice around the cylinder:
-  // sin(2*theta) ranges from -1 to 1, creating warm-cold-warm-cold pattern
-  const zoneFactor = Math.sin(2 * theta);
-  
-  // zoneFactor absolute distance from equator of the zone:
-  // 0 = neutral transition point
-  // ±1 = center of warm zone (+) or cold zone (-)
-  const distFromZoneCenter = Math.abs(zoneFactor);
-  
-  // Determine if we're in a warm or cold zone
-  const isWarmZone = zoneFactor > 0;
+  const sinHalfTheta = Math.sin(theta / 2);
+  const latitudeFactor = sinHalfTheta * sinHalfTheta;
+  // latitudeFactor: 0 at poles, 1 at equator
 
-  // 1. Base temperature (sea level, no season)
-  // Interpolate between warm and cold zone temperatures
-  // At distFromZoneCenter=1: full effect of the zone
-  // At distFromZoneCenter=0: neutral (between zones)
-  let T_base: number;
-  if (isWarmZone) {
-    // Warm zone: start at T_WARM_ZONE, cool toward center as we leave the zone
-    T_base = TEMPERATURE_CONFIG.T_WARM_ZONE - 
-      (TEMPERATURE_CONFIG.T_WARM_ZONE - TEMPERATURE_CONFIG.T_COLD_ZONE) * (1 - distFromZoneCenter);
-  } else {
-    // Cold zone: start at T_COLD_ZONE, warm toward center as we leave the zone
-    T_base = TEMPERATURE_CONFIG.T_COLD_ZONE + 
-      (TEMPERATURE_CONFIG.T_WARM_ZONE - TEMPERATURE_CONFIG.T_COLD_ZONE) * (1 - distFromZoneCenter);
-  }
+  // Temperature drops as we move away from equator
+  const latitudeCooling = -TEMPERATURE_CONFIG.LATITUDE_COOLING * (1 - latitudeFactor);
 
-  // 2. Altitude effect (lapse rate: -6°C per 1000m)
+  // 3. Calculate altitude modifier (lapse rate)
   const effectiveAltitude = Math.max(0, altitudeMeters);
-  const T_altitude = TEMPERATURE_CONFIG.LAPSE_RATE * effectiveAltitude;
+  const altitudeCooling = TEMPERATURE_CONFIG.LAPSE_RATE * effectiveAltitude;
 
-  // 3. Seasonal amplitude (stronger in cold zones, weaker in warm zones)
-  const amplitude = TEMPERATURE_CONFIG.A_MIN + 
-    (TEMPERATURE_CONFIG.A_MAX - TEMPERATURE_CONFIG.A_MIN) * distFromZoneCenter;
-
-  // 4. Seasonal variation
-  // seasonCos oscillates: +1 in summer, -1 in winter
-  // Apply with zone-aware sign
-  const T_season = amplitude * seasonCos * (isWarmZone ? 1 : -1);
-
-  // Final temperature
-  return T_base + T_altitude + T_season;
+  // Final temperature = base + latitude effect + altitude effect
+  return baseTemp + latitudeCooling + altitudeCooling;
 }
 
-/**
- * Precompute the seasonal cos factor for this tick
- * Call this once per tick and pass to getTemperature for all cells
- * 
- * @param yearProgress - Fraction of year [0, 1), where 0.5 = mid-June
- * @returns cos(2π * (yearProgress - 0.5))
- */
-export function computeSeasonCos(yearProgress: number): number {
-  const seasonPhase = yearProgress - 0.5;
-  return Math.cos(2 * Math.PI * seasonPhase);
-}

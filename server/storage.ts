@@ -1,27 +1,39 @@
 import { type TerrainCell, type TerrainGrid } from "@shared/schema";
-import { WorldGenerator, DEFAULT_WORLD_CONFIG } from "./worldGenerator";
-import { getTemperature, computeSeasonCos } from "./temperature";
+import { WorldGenerator } from "./worldGenerator";
+import { getTemperature } from "./temperature";
+import {
+  DEFAULT_WORLD_CONFIG,
+  TIME_CONFIG,
+  EROSION_CONFIG,
+  MOISTURE_CONFIG,
+  EVAPORATION_CONFIG,
+  SATURATION_CONFIG,
+  DIFFUSION_CONFIG,
+  CONDENSATION_CONFIG,
+} from "./config";
 
-// Month information with daylight hours for seasonal day/night cycles
+// Month information with daylight hours and base temperatures (at equator, sea level)
 interface MonthInfo {
   month: string;
   month_number: number;
   daylight_hours: number;
+  temp_day: number;    // Day temperature at equator, sea level (°C)
+  temp_night: number;  // Night temperature at equator, sea level (°C)
 }
 
 const MONTHS_INFO: MonthInfo[] = [
-  { month: "January", month_number: 1, daylight_hours: 8 },
-  { month: "February", month_number: 2, daylight_hours: 9 },
-  { month: "March", month_number: 3, daylight_hours: 12 },
-  { month: "April", month_number: 4, daylight_hours: 13 },
-  { month: "May", month_number: 5, daylight_hours: 15 },
-  { month: "June", month_number: 6, daylight_hours: 16 },
-  { month: "July", month_number: 7, daylight_hours: 15 },
-  { month: "August", month_number: 8, daylight_hours: 14 },
-  { month: "September", month_number: 9, daylight_hours: 12 },
-  { month: "October", month_number: 10, daylight_hours: 10 },
-  { month: "November", month_number: 11, daylight_hours: 9 },
-  { month: "December", month_number: 12, daylight_hours: 8 }
+  { month: "January", month_number: 1, daylight_hours: 8, temp_day: 24, temp_night: 18 },
+  { month: "February", month_number: 2, daylight_hours: 9, temp_day: 25, temp_night: 19 },
+  { month: "March", month_number: 3, daylight_hours: 12, temp_day: 26, temp_night: 20 },
+  { month: "April", month_number: 4, daylight_hours: 13, temp_day: 27, temp_night: 21 },
+  { month: "May", month_number: 5, daylight_hours: 15, temp_day: 28, temp_night: 22 },
+  { month: "June", month_number: 6, daylight_hours: 16, temp_day: 29, temp_night: 23 },
+  { month: "July", month_number: 7, daylight_hours: 15, temp_day: 28, temp_night: 22 },
+  { month: "August", month_number: 8, daylight_hours: 14, temp_day: 27, temp_night: 21 },
+  { month: "September", month_number: 9, daylight_hours: 12, temp_day: 26, temp_night: 20 },
+  { month: "October", month_number: 10, daylight_hours: 10, temp_day: 25, temp_night: 19 },
+  { month: "November", month_number: 11, daylight_hours: 9, temp_day: 24, temp_night: 18 },
+  { month: "December", month_number: 12, daylight_hours: 8, temp_day: 23, temp_night: 17 }
 ];
 
 // River data structure
@@ -55,44 +67,6 @@ export class MemStorage implements IStorage {
   private rivers: River[]; // Array of river objects, each with a name and water points
   private gameTime: GameTime;
   private riverNameCounter: number;
-
-  static GRID_SIZE = 300;
-  static NOISE_SCALE = 0.02;
-  static NUMBER_OF_SPRINGS = 8;
-  static HOURS_PER_DAY = 24;
-  static DAYS_PER_MONTH = 30;
-  static MONTHS_PER_YEAR = 12;
-
-  static EROSION_RATE_WATER = 0.0001; // 0.1mm per hour
-  static EROSION_RATE_WIND = 0.0001; // 0.1mm per hour
-  // static EVAPORATION_RATE_WATER = 0.0001;
-
-  // Moisture System Configuration
-  static MOISTURE_CONFIG = {
-    // Base moisture transfer
-    maxLandMoisture: 0.85,              // Maximum moisture a land cell can hold
-    transferRate: 0.025,                 // Base amount of moisture spread each tick
-    minTransfer: 0.00005,                // Stop propagating below this threshold
-
-    // Propagation limits
-    maxPropagationDistance: 50,          // Maximum cells moisture can travel per tick
-    maxCellsProcessed: 500000,           // Hard limit on cells processed per tick
-
-    // Altitude effects (percentage-based)
-    uphillPenaltyPercent: 0.0006,        // % reduction per meter when going uphill
-    altitudeDrynessPercent: 0.0004,      // % reduction based on absolute altitude
-    downhillBonusPercent: 0.0003,        // % bonus per meter when going downhill
-
-    // Water volume effects
-    waterVolumeBoostFactor: 0.3,         // Multiplier for water height boost
-    maxWaterVolumeBoost: 1.5,            // Maximum boost from water volume
-
-    // Diminishing returns
-    saturationExponent: 1.2,             // Controls how aggressively moisture saturates (lower = less aggressive)
-
-    // Evaporation
-    baseDecay: 0.99,                     // Global evaporation (1 - this value = % moisture lost per tick)
-  };
 
   constructor() {
     this.terrain = [];
@@ -134,17 +108,17 @@ export class MemStorage implements IStorage {
     this.gameTime.hour += 1;
 
     // Handle hour overflow (24 hours per day)
-    if (this.gameTime.hour >= MemStorage.HOURS_PER_DAY) {
+    if (this.gameTime.hour >= TIME_CONFIG.HOURS_PER_DAY) {
       this.gameTime.hour = 0;
       this.gameTime.day += 1;
 
       // Handle day overflow (30 days per month)
-      if (this.gameTime.day > MemStorage.DAYS_PER_MONTH) {
+      if (this.gameTime.day > TIME_CONFIG.DAYS_PER_MONTH) {
         this.gameTime.day = 1;
         this.gameTime.month += 1;
 
         // Handle month overflow (12 months per year)
-        if (this.gameTime.month > MemStorage.MONTHS_PER_YEAR) {
+        if (this.gameTime.month > TIME_CONFIG.MONTHS_PER_YEAR) {
           this.gameTime.month = 1;
           this.gameTime.year += 1;
         }
@@ -260,11 +234,12 @@ export class MemStorage implements IStorage {
     // Process each cell in the river
     for (const cell of river.points) {
       // Apply erosion: decrease terrain height, increase water height
+      const erosionAmount = EROSION_CONFIG.EROSION_RATE_WATER;
       cell.terrain_height = Math.max(
-        cell.terrain_height - MemStorage.EROSION_RATE_WATER,
+        cell.terrain_height - erosionAmount,
         -200
       );
-      cell.water_height += MemStorage.EROSION_RATE_WATER;
+      cell.water_height += erosionAmount;
       cell.altitude = cell.terrain_height + cell.water_height;
     }
 
@@ -334,7 +309,7 @@ export class MemStorage implements IStorage {
 
   private propagateMoisture(): void {
     // Use centralized moisture configuration
-    const config = MemStorage.MOISTURE_CONFIG;
+    const config = MOISTURE_CONFIG;
     const MAX_LAND_MOISTURE = config.maxLandMoisture;
     const MOISTURE_TRANSFER_RATE = config.transferRate;
     const UPHILL_PENALTY_PERCENT = config.uphillPenaltyPercent;
@@ -490,12 +465,254 @@ export class MemStorage implements IStorage {
     }
   }
 
+  /**
+   * Calculate saturation capacity for air at given temperature and altitude
+   * Returns maximum water vapor the air can hold (0-1 scale)
+   */
+  private getSaturationCapacity(temperatureCelsius: number, altitudeMeters: number): number {
+    const config = SATURATION_CONFIG;
+
+    // Temperature effect (exponential - Clausius-Clapeyron relation)
+    const tempFactor = Math.exp(config.TEMP_COEFFICIENT * temperatureCelsius);
+
+    // Altitude effect (barometric pressure decrease)
+    const pressureFactor = Math.exp(-altitudeMeters / config.SCALE_HEIGHT);
+
+    return config.BASE_SATURATION * tempFactor * pressureFactor;
+  }
+
+  /**
+   * Process evaporation from water bodies into air
+   */
+  private processWaterEvaporation(): void {
+    const config = EVAPORATION_CONFIG;
+
+    for (let y = 0; y < this.terrain.length; y++) {
+      for (let x = 0; x < this.terrain[0].length; x++) {
+        const cell = this.terrain[y][x];
+
+        // Only evaporate from water bodies
+        if (cell.type !== "spring" && cell.type !== "river") continue;
+        if (cell.water_height <= 0) continue;
+
+        // Temperature factor (no evaporation below 0°C)
+        if (cell.temperature < 0) continue;
+        const temperatureFactor = Math.max(0, 1 + config.EVAP_TEMP_COEFF * cell.temperature);
+
+        // Surface area factor (shallow water evaporates faster per unit volume)
+        const surfaceAreaFactor = Math.min(1.0, cell.water_height / config.MAX_EVAP_DEPTH);
+
+        // Saturation deficit (can't evaporate into saturated air)
+        const saturationDeficit = Math.max(0, 1 - cell.air_humidity);
+
+        // Calculate evaporation rate
+        const evaporationRate = config.BASE_EVAP_RATE
+          * temperatureFactor
+          * surfaceAreaFactor
+          * saturationDeficit;
+
+        // Apply evaporation (remove from water, add to air)
+        const waterLost = Math.min(evaporationRate, cell.water_height);
+        cell.water_height -= waterLost;
+        cell.altitude = cell.terrain_height + cell.water_height;
+
+        // Convert water loss to humidity gain
+        const humidityGain = waterLost * config.WATER_TO_HUMIDITY_FACTOR;
+        cell.air_humidity = Math.min(1.5, cell.air_humidity + humidityGain); // Allow oversaturation
+      }
+    }
+  }
+
+  /**
+   * Process evapotranspiration from ground moisture into air
+   */
+  private processEvapotranspiration(): void {
+    const config = EVAPORATION_CONFIG;
+
+    for (let y = 0; y < this.terrain.length; y++) {
+      for (let x = 0; x < this.terrain[0].length; x++) {
+        const cell = this.terrain[y][x];
+
+        // Skip water bodies (already handled in water evaporation)
+        if (cell.type === "spring" || cell.type === "river") continue;
+
+        // Only evaporate from moist ground
+        if (cell.base_moisture < config.MIN_GROUND_MOISTURE) continue;
+
+        // Temperature factor (no evapotranspiration below 0°C)
+        if (cell.temperature < 0) continue;
+        const temperatureFactor = Math.max(0, 1 + EVAPORATION_CONFIG.EVAP_TEMP_COEFF * cell.temperature);
+
+        // Saturation deficit
+        const saturationDeficit = Math.max(0, 1 - cell.air_humidity);
+
+        // Calculate evapotranspiration rate
+        const evapotranspirationRate = config.BASE_EVAPOTRANSPIRATION
+          * cell.base_moisture
+          * temperatureFactor
+          * saturationDeficit;
+
+        // Apply evapotranspiration (remove from ground, add to air)
+        const moistureLost = Math.min(evapotranspirationRate, cell.base_moisture);
+        cell.base_moisture -= moistureLost;
+        cell.moisture = cell.base_moisture;
+
+        // Convert to humidity gain
+        const humidityGain = moistureLost * EVAPORATION_CONFIG.WATER_TO_HUMIDITY_FACTOR;
+        cell.air_humidity = Math.min(1.5, cell.air_humidity + humidityGain); // Allow oversaturation
+      }
+    }
+  }
+
+  /**
+   * Diffuse humidity across the map with altitude bias
+   */
+  private diffuseHumidity(): void {
+    const config = DIFFUSION_CONFIG;
+    const height = this.terrain.length;
+    const width = this.terrain[0].length;
+
+    // Create a copy of humidity values for double-buffering
+    const newHumidity: number[][] = Array(height).fill(0).map(() => Array(width).fill(0));
+
+    // Copy current humidity values
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        newHumidity[y][x] = this.terrain[y][x].air_humidity;
+      }
+    }
+
+    let cellsProcessed = 0;
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const cell = this.terrain[y][x];
+
+        if (cellsProcessed >= config.MAX_CELLS_PROCESSED_PER_TICK) break;
+        if (cell.air_humidity < config.MIN_TRANSFER_THRESHOLD) continue;
+
+        const neighbors = this.getNeighbors(x, y);
+        const cellCapacity = this.getSaturationCapacity(cell.temperature, Math.max(0, cell.terrain_height));
+        const cellAbsolute = cell.air_humidity * cellCapacity;
+
+        for (const neighbor of neighbors) {
+          const altitudeDiff = neighbor.altitude - cell.altitude;
+
+          // Base transfer amount (percentage of current humidity)
+          let transfer = config.HUMIDITY_DIFFUSION_RATE;
+
+          // Altitude bias (humid air rises)
+          if (altitudeDiff > 0) {
+            // Going uphill - bonus
+            const altitudeBonus = Math.min(config.UPWARD_BIAS_MAX, altitudeDiff * config.UPWARD_BIAS_COEFF);
+            transfer *= (1 + altitudeBonus);
+          } else if (altitudeDiff < 0) {
+            // Going downhill - penalty
+            const altitudePenalty = Math.min(config.DOWNWARD_PENALTY_MAX, Math.abs(altitudeDiff) * config.DOWNWARD_PENALTY_COEFF);
+            transfer *= (1 - altitudePenalty);
+          }
+
+          // Calculate absolute humidity transfer
+          const neighborCapacity = this.getSaturationCapacity(neighbor.temperature, Math.max(0, neighbor.terrain_height));
+          const neighborAbsolute = neighbor.air_humidity * neighborCapacity;
+
+          // Maximum transfer limited by neighbor's capacity
+          const maxTransferAbsolute = Math.max(0, neighborCapacity - neighborAbsolute);
+          const transferAbsolute = Math.min(transfer * cellAbsolute, maxTransferAbsolute);
+
+          if (transferAbsolute > 0.0001) {
+            // Apply transfer to new humidity array
+            newHumidity[y][x] -= transferAbsolute / cellCapacity;
+            newHumidity[neighbor.y][neighbor.x] += transferAbsolute / neighborCapacity;
+            cellsProcessed++;
+          }
+        }
+      }
+    }
+
+    // Apply new humidity values
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        this.terrain[y][x].air_humidity = Math.max(0, newHumidity[y][x]);
+      }
+    }
+  }
+
+  /**
+   * Process condensation from air to ground
+   */
+  private processCondensation(): void {
+    const config = CONDENSATION_CONFIG;
+
+    for (let y = 0; y < this.terrain.length; y++) {
+      for (let x = 0; x < this.terrain[0].length; x++) {
+        const cell = this.terrain[y][x];
+
+        // Oversaturation condensation (air cooled or too humid)
+        if (cell.air_humidity > 1.0) {
+          const excess = cell.air_humidity - 1.0;
+          const condensationAmount = excess * config.CONDENSATION_RATE;
+
+          cell.air_humidity -= condensationAmount;
+
+          // Add to ground moisture (skip water bodies)
+          if (cell.type !== "spring" && cell.type !== "river") {
+            cell.base_moisture = Math.min(
+              MOISTURE_CONFIG.maxLandMoisture,
+              cell.base_moisture + condensationAmount * config.AIR_TO_GROUND_FACTOR
+            );
+            cell.moisture = cell.base_moisture;
+          }
+        }
+
+        // Dew formation (high humidity + cold conditions)
+        if (cell.air_humidity > config.DEW_THRESHOLD && cell.temperature < 15) {
+          const dewAmount = (cell.air_humidity - config.DEW_THRESHOLD) * config.DEW_CONDENSATION_RATE;
+
+          cell.air_humidity -= dewAmount;
+
+          // Add to ground moisture (skip water bodies)
+          if (cell.type !== "spring" && cell.type !== "river") {
+            cell.base_moisture = Math.min(
+              MOISTURE_CONFIG.maxLandMoisture,
+              cell.base_moisture + dewAmount * config.AIR_TO_GROUND_FACTOR
+            );
+            cell.moisture = cell.base_moisture;
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Adjust humidity when temperature changes (maintains absolute humidity)
+   */
+  private adjustHumidityForTemperatureChange(): void {
+    for (let y = 0; y < this.terrain.length; y++) {
+      for (let x = 0; x < this.terrain[0].length; x++) {
+        const cell = this.terrain[y][x];
+
+        // Get current capacity
+        const currentCapacity = this.getSaturationCapacity(cell.temperature, Math.max(0, cell.terrain_height));
+
+        // Calculate absolute humidity (stays constant when temp changes)
+        const absoluteHumidity = cell.air_humidity * currentCapacity;
+
+        // Recalculate relative humidity with new capacity
+        // (This happens automatically in next tick, but we check for condensation here)
+        const newRelativeHumidity = absoluteHumidity / currentCapacity;
+
+        // Update relative humidity
+        cell.air_humidity = newRelativeHumidity;
+
+        // If oversaturated due to cooling, will be handled in condensation step
+      }
+    }
+  }
+
   async landUpdate() {
     // Advance game time by 1 hour each tick
     this.advanceTime();
-
-    // Calculate moisture propagation
-    this.propagateMoisture();
 
     // Process water flow for each river/stream
     // Note: We iterate backwards to safely handle river merges
@@ -505,22 +722,36 @@ export class MemStorage implements IStorage {
       }
     }
 
-    // Update temperature for all cells
+    // 1. Update temperature for all cells (affects saturation capacity)
     this.updateTemperature();
 
-    // TODO: add humidity
+    // 2. Adjust air humidity for temperature change (maintains absolute humidity)
+    this.adjustHumidityForTemperatureChange();
+
+    // 3. Evaporation from water bodies → air humidity
+    this.processWaterEvaporation();
+
+    // 4. Evapotranspiration from ground → air humidity
+    this.processEvapotranspiration();
+
+    // 5. Humidity diffusion/spread across cells
+    this.diffuseHumidity();
+
+    // 6. Condensation checks (oversaturation, dew point)
+    this.processCondensation();
+
+    // 7. Update ground moisture from existing propagation system
+    this.propagateMoisture();
+
     // TODO: add pressure
     // TODO: add light
-    // TODO: add air
-    // TODO: add atmosphere
     // TODO: add weather (rain, snow, etc)
     // Note: Seasonal day/night cycles with daylight hours are implemented
     // TODO: add erosion
 
-    // TODO: add grass - and grass mechanincs 
-    // TODO: add trees - and tree mechanins
-    // TODO: add fruits - and fruit mechanins
-
+    // TODO: add grass - and grass mechanics 
+    // TODO: add trees - and tree mechanics
+    // TODO: add fruits - and fruit mechanics
 
     // TODO: add rabbits
     // TODO: add foxes
@@ -531,16 +762,11 @@ export class MemStorage implements IStorage {
   }
 
   private updateTemperature(): void {
-    // Calculate year progress as fraction of year (0 to 1)
-    // 12 months * 30 days * 24 hours = 8640 hours per year
-    const hourOfYear = ((this.gameTime.month - 1) * MemStorage.DAYS_PER_MONTH * MemStorage.HOURS_PER_DAY) +
-                       ((this.gameTime.day - 1) * MemStorage.HOURS_PER_DAY) +
-                       this.gameTime.hour;
-    const hoursPerYear = MemStorage.MONTHS_PER_YEAR * MemStorage.DAYS_PER_MONTH * MemStorage.HOURS_PER_DAY;
-    const yearProgress = (hourOfYear % hoursPerYear) / hoursPerYear;
-
-    // Precompute seasonal cos factor once per tick
-    const seasonCos = computeSeasonCos(yearProgress);
+    // Get current month info for base temperatures
+    const monthInfo = MONTHS_INFO[this.gameTime.month - 1];
+    const monthTempDay = monthInfo.temp_day;
+    const monthTempNight = monthInfo.temp_night;
+    const currentHour = this.gameTime.hour;
 
     // Update temperature for each cell
     const height = this.terrain.length;
@@ -549,9 +775,18 @@ export class MemStorage implements IStorage {
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const cell = this.terrain[y][x];
-        // Convert from game units to meters: terrain_height ranges roughly -200 to 3000
+        // Use terrain_height as altitude in meters
         const altitudeMeters = cell.terrain_height;
-        cell.temperature = getTemperature(x, y, altitudeMeters, width, height, seasonCos);
+        cell.temperature = getTemperature(
+          x,
+          y,
+          altitudeMeters,
+          width,
+          height,
+          monthTempDay,
+          monthTempNight,
+          currentHour
+        );
       }
     }
   }

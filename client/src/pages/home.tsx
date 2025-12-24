@@ -249,6 +249,12 @@ export default function Home() {
                       Temperature:
                     </div>
                     <div>{selectedCell.cell.temperature.toFixed(1)}°C</div>
+
+                    <div className="font-semibold flex items-center gap-1">
+                      <Droplets className="h-4 w-4" />
+                      Air Humidity:
+                    </div>
+                    <div>{(selectedCell.cell.air_humidity * 100).toFixed(1)}%</div>
                   </div>
                 </div>
               )}
@@ -278,7 +284,8 @@ export default function Home() {
                                 | "default"
                                 | "heightmap"
                                 | "moisture"
-                                | "temperature",
+                                | "temperature"
+                                | "humidity",
                             });
                           }}
                         >
@@ -291,6 +298,9 @@ export default function Home() {
                             <SelectItem value="moisture">Moisture</SelectItem>
                             <SelectItem value="temperature">
                               Temperature
+                            </SelectItem>
+                            <SelectItem value="humidity">
+                              Humidity
                             </SelectItem>
                           </SelectContent>
                         </Select>
@@ -383,7 +393,7 @@ export default function Home() {
                         </div>
 
                         <div className="text-sm text-muted-foreground mt-1">
-                          <p>You can zoom with the mouse wheel and pan with middle/right click drag.</p>
+                          <p>Use the slider above to zoom and pan with middle/right click drag.</p>
                           <Button
                             variant="outline"
                             size="sm"
