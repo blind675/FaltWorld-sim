@@ -334,9 +334,18 @@ export class MemStorage implements IStorage {
         if (!visited.has(key)) {
           visited.add(key);
           cell.distance_from_water = 0;
+          cell.base_moisture = 1.0;
+          cell.moisture = 1.0;
           queue.push({ cell, distance: 0, moisture: 1.0 });
         }
       }
+    }
+
+    console.log(`[moisture] Found ${this.rivers.length} rivers, ${queue.length} water cells`);
+
+    if (queue.length === 0) {
+      console.log('[moisture] WARNING: No water sources found!');
+      return;
     }
 
     // Breadth-first propagation (limited distance and cells per tick)
@@ -344,7 +353,7 @@ export class MemStorage implements IStorage {
       const { cell, distance, moisture } = queue.shift()!;
       cellsProcessed++;
 
-      if (distance >= MAX_PROPAGATION_DISTANCE) continue;
+      // if (distance >= MAX_PROPAGATION_DISTANCE) continue;
 
       const neighbors = this.getNeighbors(cell.x, cell.y);
 
@@ -357,7 +366,7 @@ export class MemStorage implements IStorage {
 
         // Calculate distance-based moisture (linear decay from source)
         const newDistance = distance + 1;
-        const distanceDecay = Math.max(0, 1 - (newDistance * 0.015)); // Decay 1.5% per cell (~67 cell max range)
+        const distanceDecay = Math.max(0, 1 - (newDistance * 0.008)); // Decay 0.8% per cell (~125 cell max range)
 
         // Water volume boost: cells with more water spread moisture more effectively
         // This simulates larger water bodies having greater influence
@@ -445,9 +454,9 @@ export class MemStorage implements IStorage {
     }
 
     // Optional: Log if we hit the processing limit (for debugging)
-    // if (cellsProcessed >= MAX_CELLS_PROCESSED) {
-    //   console.log(`Hit cell processing limit: ${cellsProcessed} cells, queue remaining: ${queue.length}`);
-    // }
+    if (cellsProcessed >= MAX_CELLS_PROCESSED) {
+      console.log(`Hit cell processing limit: ${cellsProcessed} cells, queue remaining: ${queue.length}`);
+    }
 
     // Apply evaporation to non-water cells
     for (let y = 0; y < this.terrain.length; y++) {

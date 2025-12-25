@@ -14,12 +14,12 @@ export interface WorldConfig {
 }
 
 export const DEFAULT_WORLD_CONFIG: WorldConfig = {
-    gridSize: 500,
+    gridSize: 300,
     noiseScale: 0.003, // Matches Unity terrainFrequency
-    numberOfSprings: 6,
+    numberOfSprings: 50,
     minHeight: -200,
     maxHeight: 2000, // Matches Unity MAX_HEIGHT_VALUE
-    springMinHeight: 1400,
+    springMinHeight: 1000,
     springMaxHeight: 1900,
 };
 
@@ -40,16 +40,16 @@ export const EROSION_CONFIG = {
 export const MOISTURE_CONFIG = {
     // Base moisture transfer
     maxLandMoisture: 0.85,              // Maximum moisture a land cell can hold
-    transferRate: 0.025,                 // Base amount of moisture spread each tick
-    minTransfer: 0.00005,                // Stop propagating below this threshold
+    transferRate: 0.05,                 // Base amount of moisture spread each tick
+    minTransfer: 0.00001,                // Stop propagating below this threshold
 
     // Propagation limits
-    maxPropagationDistance: 50,          // Maximum cells moisture can travel per tick
-    maxCellsProcessed: 500000,           // Hard limit on cells processed per tick
+    maxPropagationDistance: 1000,          // Maximum cells moisture can travel per tick
+    maxCellsProcessed: 5000000,           // Hard limit on cells processed per tick
 
     // Altitude effects (percentage-based)
     uphillPenaltyPercent: 0.0006,        // % reduction per meter when going uphill
-    altitudeDrynessPercent: 0.0004,      // % reduction based on absolute altitude
+    altitudeDrynessPercent: 0.0001,      // % reduction based on absolute altitude
     downhillBonusPercent: 0.0003,        // % bonus per meter when going downhill
 
     // Water volume effects
@@ -57,10 +57,10 @@ export const MOISTURE_CONFIG = {
     maxWaterVolumeBoost: 1.5,            // Maximum boost from water volume
 
     // Diminishing returns
-    saturationExponent: 1.2,             // Controls how aggressively moisture saturates (lower = less aggressive)
+    saturationExponent: 0.8,             // Controls how aggressively moisture saturates (lower = less aggressive)
 
     // Evaporation
-    baseDecay: 0.99,                     // Global evaporation (1 - this value = % moisture lost per tick)
+    baseDecay: 0.995,                     // Global evaporation (0.5% - this value = % moisture lost per tick)
 };
 
 // Atmospheric Humidity System Configuration

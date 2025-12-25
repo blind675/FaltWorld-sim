@@ -8,7 +8,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // Set up periodic task
-export const INTERVAL = 1000 * 1; // 1 second in milliseconds (update interval)
+export const INTERVAL = 1000 * 30; // 30 second in milliseconds (update interval)
 let intervalId: NodeJS.Timeout;
 
 function startPeriodicTask() {
@@ -69,7 +69,7 @@ app.use((req, res, next) => {
   // Start periodic task after server is ready
   startPeriodicTask();
 
-  const PORT = 5002;
+  const PORT = 5000;
   server.listen(PORT, "0.0.0.0", () => {
     log(`serving on port ${PORT}`);
   });

@@ -219,7 +219,7 @@ export class WorldGenerator {
                     x,
                     y,
                     gridSize,
-                    this.config.noiseScale * gridSize
+                    gridSize * gridSize / 100000
                 );
                 const mappedHeight = this.mapHeight(noiseVal);
 
@@ -251,7 +251,9 @@ export class WorldGenerator {
         const springs: { x: number; y: number }[] = [];
         const candidates: { x: number; y: number }[] = [];
 
-        const { springMinHeight, springMaxHeight, numberOfSprings } = this.config;
+        const { springMinHeight, springMaxHeight } = this.config;
+
+        const numberOfSprings = Math.floor((this.config.gridSize / 100) * 2);
 
         for (let y = 0; y < terrain.length; y++) {
             for (let x = 0; x < terrain[0].length; x++) {
@@ -262,9 +264,45 @@ export class WorldGenerator {
             }
         }
 
+        // Calculate minimum distance between springs based on map size and desired spring count
+        // This ensures springs are well-distributed across the map
+        const mapArea = terrain.length * terrain[0].length;
+        const minDistance = Math.floor(Math.sqrt(mapArea / numberOfSprings) * 0.6);
+
+        const mapWidth = terrain[0].length;
+        const mapHeight = terrain.length;
+
+        // Try to place springs with minimum distance constraint
+        // numberOfSprings is treated as a maximum - we may place fewer if candidates run out
         while (springs.length < numberOfSprings && candidates.length > 0) {
             const idx = Math.floor(Math.random() * candidates.length);
-            springs.push(candidates[idx]);
+            const candidate = candidates[idx];
+
+            // Check if this candidate is far enough from all existing springs
+            let tooClose = false;
+            for (const spring of springs) {
+                // Calculate toroidal distance (accounting for map wrapping)
+                const dx = Math.abs(candidate.x - spring.x);
+                const dy = Math.abs(candidate.y - spring.y);
+
+                // For toroidal topology, the shortest distance might wrap around
+                const wrappedDx = Math.min(dx, mapWidth - dx);
+                const wrappedDy = Math.min(dy, mapHeight - dy);
+
+                const distance = Math.sqrt(wrappedDx * wrappedDx + wrappedDy * wrappedDy);
+
+                if (distance < minDistance) {
+                    tooClose = true;
+                    break;
+                }
+            }
+
+            // Only add spring if it's far enough from others
+            if (!tooClose) {
+                springs.push(candidate);
+            }
+
+            // Remove candidate regardless to avoid infinite loops
             candidates.splice(idx, 1);
         }
 
