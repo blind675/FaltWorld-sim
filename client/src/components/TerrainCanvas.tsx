@@ -298,6 +298,67 @@ export function TerrainCanvas({
           cellHeight + 1,
         );
 
+        // Draw connected river segments for clearer stream tracking
+        if (
+          settings.showRivers &&
+          (cell.type === "river" || cell.type === "spring") &&
+          cell.river_name
+        ) {
+          const drawRiverSegment = (
+            neighborX: number,
+            neighborY: number,
+            screenNeighborX: number,
+            screenNeighborY: number,
+          ) => {
+            const neighborCell = terrain[neighborY][neighborX];
+            if (
+              !neighborCell ||
+              (neighborCell.type !== "river" && neighborCell.type !== "spring") ||
+              neighborCell.river_name !== cell.river_name
+            ) {
+              return;
+            }
+
+            const baseWidth = Math.max(1, Math.min(3, cell.water_height || 1));
+            const lineWidth =
+              Math.max(1, Math.min(cellWidth, cellHeight) * 0.15) * baseWidth;
+
+            ctx.strokeStyle = cell.water_height >= 2
+              ? "rgba(0, 64, 192, 0.9)"
+              : "rgba(0, 128, 255, 0.9)";
+            ctx.lineWidth = lineWidth;
+            ctx.lineCap = "round";
+
+            ctx.beginPath();
+            ctx.moveTo(
+              x * cellWidth + normalizedPanX + cellWidth / 2,
+              y * cellHeight + normalizedPanY + cellHeight / 2,
+            );
+            ctx.lineTo(
+              screenNeighborX + cellWidth / 2,
+              screenNeighborY + cellHeight / 2,
+            );
+            ctx.stroke();
+          };
+
+          const wrappedRightX = (wrappedX + 1) % gridSize;
+          const wrappedDownY = (wrappedY + 1) % gridSize;
+
+          drawRiverSegment(
+            wrappedRightX,
+            wrappedY,
+            (x + 1) * cellWidth + normalizedPanX,
+            y * cellHeight + normalizedPanY,
+          );
+
+          drawRiverSegment(
+            wrappedX,
+            wrappedDownY,
+            x * cellWidth + normalizedPanX,
+            (y + 1) * cellHeight + normalizedPanY,
+          );
+        }
+
         // Draw contour lines if enabled
         if (settings.contourLines && settings.showElevation) {
           // Get the altitude adjusted with the contour interval
