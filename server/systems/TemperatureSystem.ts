@@ -3,6 +3,8 @@ import { type GameTime } from "../storage";
 import { type ISimulationSystem } from "./ISimulationSystem";
 import { GridHelper } from "./GridHelper";
 import { getTemperature } from "../temperature";
+import { PERFORMANCE_CONFIG } from "../config";
+import { performance } from "node:perf_hooks";
 
 /**
  * Month information for temperature calculations
@@ -35,7 +37,17 @@ const MONTHS_INFO: MonthInfo[] = [
  */
 export class TemperatureSystem implements ISimulationSystem {
     update(terrain: TerrainGrid, gameTime: GameTime): void {
+        const shouldLog = PERFORMANCE_CONFIG.ENABLE_PERFORMANCE_LOGGING;
+        const start = shouldLog ? performance.now() : 0;
+
         this.updateTemperature(terrain, gameTime);
+
+        if (shouldLog) {
+            const duration = performance.now() - start;
+            if (duration > 1000) {
+                console.warn(`${this.constructor.name} took ${Math.round(duration)}ms`);
+            }
+        }
     }
 
     private updateTemperature(terrain: TerrainGrid, gameTime: GameTime): void {

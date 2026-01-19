@@ -2,14 +2,25 @@ import { type TerrainGrid } from "@shared/schema";
 import { type GameTime } from "../storage";
 import { type ISimulationSystem } from "./ISimulationSystem";
 import { GridHelper } from "./GridHelper";
-import { CONDENSATION_CONFIG, MOISTURE_CONFIG } from "../config";
+import { CONDENSATION_CONFIG, MOISTURE_CONFIG, PERFORMANCE_CONFIG } from "../config";
+import { performance } from "node:perf_hooks";
 
 /**
  * Manages condensation from air to ground moisture
  */
 export class CondensationSystem implements ISimulationSystem {
     update(terrain: TerrainGrid, gameTime: GameTime): void {
+        const shouldLog = PERFORMANCE_CONFIG.ENABLE_PERFORMANCE_LOGGING;
+        const start = shouldLog ? performance.now() : 0;
+
         this.processCondensation(terrain);
+
+        if (shouldLog) {
+            const duration = performance.now() - start;
+            if (duration > 1000) {
+                console.warn(`${this.constructor.name} took ${Math.round(duration)}ms`);
+            }
+        }
     }
 
     /**

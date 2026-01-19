@@ -2,15 +2,26 @@ import { type TerrainGrid } from "@shared/schema";
 import { type GameTime } from "../storage";
 import { type ISimulationSystem } from "./ISimulationSystem";
 import { GridHelper } from "./GridHelper";
-import { EVAPORATION_CONFIG } from "../config";
+import { EVAPORATION_CONFIG, PERFORMANCE_CONFIG } from "../config";
+import { performance } from "node:perf_hooks";
 
 /**
  * Manages evaporation from water bodies and evapotranspiration from ground
  */
 export class EvaporationSystem implements ISimulationSystem {
     update(terrain: TerrainGrid, gameTime: GameTime): void {
+        const shouldLog = PERFORMANCE_CONFIG.ENABLE_PERFORMANCE_LOGGING;
+        const start = shouldLog ? performance.now() : 0;
+
         this.processWaterEvaporation(terrain);
         this.processEvapotranspiration(terrain);
+
+        if (shouldLog) {
+            const duration = performance.now() - start;
+            if (duration > 1000) {
+                console.warn(`${this.constructor.name} took ${Math.round(duration)}ms`);
+            }
+        }
     }
 
     /**

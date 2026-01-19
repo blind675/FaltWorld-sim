@@ -7,6 +7,7 @@ import { EvaporationSystem } from "./EvaporationSystem";
 import { HumiditySystem } from "./HumiditySystem";
 import { CondensationSystem } from "./CondensationSystem";
 import { MoistureSystem } from "./MoistureSystem";
+import { PERFORMANCE_CONFIG } from "../config";
 
 /**
  * Orchestrates all simulation systems in the correct order
@@ -47,22 +48,45 @@ export class SimulationEngine {
      * Run one simulation tick
      */
     update(terrain: TerrainGrid, gameTime: GameTime): void {
+        const shouldLog = PERFORMANCE_CONFIG.ENABLE_PERFORMANCE_LOGGING;
+        const startTime = Date.now();
+
         // 1. Update temperature (affects saturation capacity)
+        if (shouldLog) console.time("Temperature");
         this.temperatureSystem.update(terrain, gameTime);
+        if (shouldLog) console.timeEnd("Temperature");
 
         // 2. Process hydrology (river flow, erosion)
+        if (shouldLog) console.time("Hydrology");
         this.hydrologySystem.update(terrain, gameTime);
+        if (shouldLog) console.timeEnd("Hydrology");
 
         // 3. Adjust humidity for temperature changes and diffuse
+        if (shouldLog) console.time("Humidity");
         this.humiditySystem.update(terrain, gameTime);
+        if (shouldLog) console.timeEnd("Humidity");
 
         // 4. Evaporation from water bodies and ground
+        if (shouldLog) console.time("Evaporation");
         this.evaporationSystem.update(terrain, gameTime);
+        if (shouldLog) console.timeEnd("Evaporation");
 
         // 5. Condensation (oversaturation → ground moisture)
+        if (shouldLog) console.time("Condensation");
         this.condensationSystem.update(terrain, gameTime);
+        if (shouldLog) console.timeEnd("Condensation");
 
         // 6. Ground moisture propagation
+        if (shouldLog) console.time("Moisture");
         this.moistureSystem.update(terrain, gameTime);
+        if (shouldLog) console.timeEnd("Moisture");
+
+        if (shouldLog) {
+            const totalTime = Date.now() - startTime;
+            console.log(`Total tick time: ${totalTime}ms`);
+            if (totalTime > PERFORMANCE_CONFIG.TICK_TIME_WARNING_MS) {
+                console.warn("⚠️  Tick exceeded 5s target!");
+            }
+        }
     }
 }
