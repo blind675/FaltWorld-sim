@@ -30,6 +30,13 @@ export const TIME_CONFIG = {
     MONTHS_PER_YEAR: 12,
 };
 
+// Viewport + Minimap Configuration
+export const VIEWPORT_CONFIG = {
+    MAX_VIEWPORT_SIZE: 200,      // Max cells per dimension
+    DEFAULT_MINIMAP_RES: 200,    // Default minimap resolution
+    MINIMAP_CACHE_TTL: 60000,    // Cache time in ms
+};
+
 // Erosion Configuration
 export const EROSION_CONFIG = {
     EROSION_RATE_WATER: 0.0001, // 0.1mm per hour
