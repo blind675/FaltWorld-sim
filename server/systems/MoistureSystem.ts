@@ -2,14 +2,25 @@ import { type TerrainGrid, type TerrainCell } from "@shared/schema";
 import { type GameTime } from "../storage";
 import { type ISimulationSystem } from "./ISimulationSystem";
 import { GridHelper } from "./GridHelper";
-import { MOISTURE_CONFIG } from "../config";
+import { MOISTURE_CONFIG, PERFORMANCE_CONFIG } from "../config";
+import { performance } from "node:perf_hooks";
 
 /**
  * Manages ground moisture propagation from water sources
  */
 export class MoistureSystem implements ISimulationSystem {
     update(terrain: TerrainGrid, gameTime: GameTime): void {
+        const shouldLog = PERFORMANCE_CONFIG.ENABLE_PERFORMANCE_LOGGING;
+        const start = shouldLog ? performance.now() : 0;
+
         this.propagateMoisture(terrain);
+
+        if (shouldLog) {
+            const duration = performance.now() - start;
+            if (duration > 1000) {
+                console.warn(`${this.constructor.name} took ${Math.round(duration)}ms`);
+            }
+        }
     }
 
     private propagateMoisture(terrain: TerrainGrid): void {
@@ -26,7 +37,9 @@ export class MoistureSystem implements ISimulationSystem {
         const visited = new Set<string>();
         let cellsProcessed = 0;
 
-        const queue: Array<{ cell: TerrainCell, distance: number, moisture: number }> = [];
+        const queue: Array<{ cell: TerrainCell, distance: number }> = [];
+        const maxDistance = PERFORMANCE_CONFIG.MAX_MOISTURE_PROPAGATION_DISTANCE;
+        const minMoistureThreshold = PERFORMANCE_CONFIG.MIN_MOISTURE_THRESHOLD;
 
         // Initialize queue with all river cells
         const { width, height } = GridHelper.getDimensions(terrain);
@@ -42,7 +55,7 @@ export class MoistureSystem implements ISimulationSystem {
                         cell.distance_from_water = 0;
                         cell.base_moisture = 1.0;
                         cell.moisture = 1.0;
-                        queue.push({ cell, distance: 0, moisture: 1.0 });
+                        queue.push({ cell, distance: 0 });
                         if (cell.type === "spring") riverCount++;
                     }
                 }
@@ -57,8 +70,10 @@ export class MoistureSystem implements ISimulationSystem {
         }
 
         // Breadth-first propagation
-        while (queue.length > 0 && cellsProcessed < MAX_CELLS_PROCESSED) {
-            const { cell, distance, moisture } = queue.shift()!;
+        let queueIndex = 0;
+        while (queueIndex < queue.length && cellsProcessed < MAX_CELLS_PROCESSED) {
+            const { cell, distance } = queue[queueIndex];
+            queueIndex++;
             cellsProcessed++;
 
             const neighbors = GridHelper.getNeighbors(terrain, cell.x, cell.y);
@@ -70,6 +85,7 @@ export class MoistureSystem implements ISimulationSystem {
                 if (neighbor.type === "river" || neighbor.type === "spring") continue;
 
                 const newDistance = distance + 1;
+                if (newDistance > maxDistance) continue;
                 const distanceDecay = Math.max(0, 1 - (newDistance * 0.008));
 
                 const waterVolumeBoost = 1.0 + Math.min(
@@ -79,7 +95,7 @@ export class MoistureSystem implements ISimulationSystem {
 
                 const baseMoisture = distanceDecay * MOISTURE_TRANSFER_RATE * waterVolumeBoost;
 
-                if (baseMoisture < MIN_TRANSFER) continue;
+                if (baseMoisture < MIN_TRANSFER || baseMoisture < minMoistureThreshold) continue;
 
                 let moistureMultiplier = 1.0;
 
@@ -105,6 +121,8 @@ export class MoistureSystem implements ISimulationSystem {
                     effectiveTransfer *= diminishingReturns;
                 }
 
+                if (neighbor.base_moisture >= MAX_LAND_MOISTURE) continue;
+
                 if (effectiveTransfer > 0 && neighbor.base_moisture < MAX_LAND_MOISTURE) {
                     const newMoisture = Math.min(
                         neighbor.base_moisture + effectiveTransfer,
@@ -119,8 +137,7 @@ export class MoistureSystem implements ISimulationSystem {
                         visited.add(neighborKey);
                         queue.push({
                             cell: neighbor,
-                            distance: newDistance,
-                            moisture: newMoisture
+                            distance: newDistance
                         });
 
                         if (neighbor.moisture > 0.8) {

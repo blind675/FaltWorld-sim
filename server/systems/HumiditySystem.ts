@@ -2,15 +2,26 @@ import { type TerrainGrid } from "@shared/schema";
 import { type GameTime } from "../storage";
 import { type ISimulationSystem } from "./ISimulationSystem";
 import { GridHelper } from "./GridHelper";
-import { DIFFUSION_CONFIG, SATURATION_CONFIG } from "../config";
+import { DIFFUSION_CONFIG, PERFORMANCE_CONFIG, SATURATION_CONFIG } from "../config";
+import { performance } from "node:perf_hooks";
 
 /**
  * Manages air humidity diffusion and saturation calculations
  */
 export class HumiditySystem implements ISimulationSystem {
     update(terrain: TerrainGrid, gameTime: GameTime): void {
+        const shouldLog = PERFORMANCE_CONFIG.ENABLE_PERFORMANCE_LOGGING;
+        const start = shouldLog ? performance.now() : 0;
+
         this.adjustHumidityForTemperatureChange(terrain);
         this.diffuseHumidity(terrain);
+
+        if (shouldLog) {
+            const duration = performance.now() - start;
+            if (duration > 1000) {
+                console.warn(`${this.constructor.name} took ${Math.round(duration)}ms`);
+            }
+        }
     }
 
     /**
@@ -51,23 +62,28 @@ export class HumiditySystem implements ISimulationSystem {
     private diffuseHumidity(terrain: TerrainGrid): void {
         const config = DIFFUSION_CONFIG;
         const { width, height } = GridHelper.getDimensions(terrain);
+        const minHumidity = Math.max(config.MIN_TRANSFER_THRESHOLD, PERFORMANCE_CONFIG.MIN_HUMIDITY_THRESHOLD);
 
-        const newHumidity: number[][] = Array(height).fill(0).map(() => Array(width).fill(0));
+        for (let iteration = 0; iteration < PERFORMANCE_CONFIG.HUMIDITY_DIFFUSION_ITERATIONS; iteration++) {
+            const newHumidity: number[][] = Array(height).fill(0).map(() => Array(width).fill(0));
 
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                newHumidity[y][x] = terrain[y][x].air_humidity;
+            const activeCells: Array<{ x: number; y: number }> = [];
+
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const humidity = terrain[y][x].air_humidity;
+                    newHumidity[y][x] = humidity;
+                    if (humidity >= minHumidity) {
+                        activeCells.push({ x, y });
+                    }
+                }
             }
-        }
 
-        let cellsProcessed = 0;
+            let cellsProcessed = 0;
 
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                const cell = terrain[y][x];
-
+            for (const { x, y } of activeCells) {
                 if (cellsProcessed >= config.MAX_CELLS_PROCESSED_PER_TICK) break;
-                if (cell.air_humidity < config.MIN_TRANSFER_THRESHOLD) continue;
+                const cell = terrain[y][x];
 
                 const neighbors = GridHelper.getNeighbors(terrain, x, y);
                 const cellCapacity = this.getSaturationCapacity(cell.temperature, Math.max(0, cell.terrain_height));
@@ -99,11 +115,11 @@ export class HumiditySystem implements ISimulationSystem {
                     }
                 }
             }
-        }
 
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                terrain[y][x].air_humidity = Math.max(0, newHumidity[y][x]);
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    terrain[y][x].air_humidity = Math.max(0, newHumidity[y][x]);
+                }
             }
         }
     }

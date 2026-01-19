@@ -14,9 +14,9 @@ export interface WorldConfig {
 }
 
 export const DEFAULT_WORLD_CONFIG: WorldConfig = {
-    gridSize: 300,
-    noiseScale: 0.003, // Matches Unity terrainFrequency
-    numberOfSprings: 50,
+    gridSize: 1000,
+    noiseScale: 0.001, // Adjusted for larger world size
+    numberOfSprings: 150,
     minHeight: -200,
     maxHeight: 2000, // Matches Unity MAX_HEIGHT_VALUE
     springMinHeight: 1000,
@@ -88,6 +88,25 @@ export const DIFFUSION_CONFIG = {
     DOWNWARD_PENALTY_MAX: 0.3,          // 30% max penalty
     MIN_TRANSFER_THRESHOLD: 0.01,       // stop spreading below 1% humidity
     MAX_CELLS_PROCESSED_PER_TICK: 1000000,
+};
+
+// Performance Configuration
+export const PERFORMANCE_CONFIG = {
+    // Hydrology
+    MAX_RIVER_FLOW_ITERATIONS: 100,     // Per tick
+    MIN_WATER_HEIGHT_THRESHOLD: 0.01,   // Skip below this
+
+    // Moisture
+    MAX_MOISTURE_PROPAGATION_DISTANCE: 50, // BFS limit
+    MIN_MOISTURE_THRESHOLD: 0.001,         // Skip below this
+
+    // Humidity
+    HUMIDITY_DIFFUSION_ITERATIONS: 2,   // Reduced from 3
+    MIN_HUMIDITY_THRESHOLD: 0.01,       // Skip below this
+
+    // General
+    ENABLE_PERFORMANCE_LOGGING: true,
+    TICK_TIME_WARNING_MS: 5000,
 };
 
 export const CONDENSATION_CONFIG = {
