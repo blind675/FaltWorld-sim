@@ -2,7 +2,8 @@ import { type TerrainGrid, type TerrainCell } from "@shared/schema";
 import { type GameTime } from "../storage";
 import { type ISimulationSystem } from "./ISimulationSystem";
 import { GridHelper } from "./GridHelper";
-import { EROSION_CONFIG } from "../config";
+import { EROSION_CONFIG, PERFORMANCE_CONFIG } from "../config";
+import { performance } from "node:perf_hooks";
 
 /**
  * River data structure
@@ -10,6 +11,11 @@ import { EROSION_CONFIG } from "../config";
 interface River {
     name: string;
     points: TerrainCell[];
+}
+
+interface RiverQueueItem {
+    river: River;
+    priority: number;
 }
 
 /**
@@ -52,11 +58,25 @@ export class HydrologySystem implements ISimulationSystem {
     }
 
     update(terrain: TerrainGrid, gameTime: GameTime): void {
-        // Process water flow for each river/stream
-        // Iterate backwards to safely handle river merges
-        for (let i = this.rivers.length - 1; i >= 0; i--) {
-            if (i < this.rivers.length) {
-                this.processRiverFlow(terrain, this.rivers[i]);
+        const shouldLog = PERFORMANCE_CONFIG.ENABLE_PERFORMANCE_LOGGING;
+        const start = shouldLog ? performance.now() : 0;
+        const queue = this.buildRiverQueue();
+        let iterations = 0;
+
+        // Process water flow for each river/stream, prioritizing higher-altitude sources
+        while (queue.length > 0 && iterations < PERFORMANCE_CONFIG.MAX_RIVER_FLOW_ITERATIONS) {
+            const item = this.popHighestPriorityRiver(queue);
+            if (!item) break;
+            if (!this.rivers.includes(item.river)) continue;
+
+            this.processRiverFlow(terrain, item.river, PERFORMANCE_CONFIG.MIN_WATER_HEIGHT_THRESHOLD);
+            iterations++;
+        }
+
+        if (shouldLog) {
+            const duration = performance.now() - start;
+            if (duration > 1000) {
+                console.warn(`${this.constructor.name} took ${Math.round(duration)}ms`);
             }
         }
     }
@@ -122,11 +142,20 @@ export class HydrologySystem implements ISimulationSystem {
     /**
      * Process water flow for a single stream/river
      */
-    private processRiverFlow(terrain: TerrainGrid, river: River): boolean {
+    private processRiverFlow(
+        terrain: TerrainGrid,
+        river: River,
+        minWaterHeightThreshold: number
+    ): boolean {
         if (river.points.length === 0) return false;
 
         // Process each cell in the river - apply erosion
+        let lowestCell: TerrainCell | null = null;
+
         for (const cell of river.points) {
+            if (cell.type !== "spring" && cell.water_height < minWaterHeightThreshold) {
+                continue;
+            }
             const erosionAmount = EROSION_CONFIG.EROSION_RATE_WATER;
             cell.terrain_height = Math.max(
                 cell.terrain_height - erosionAmount,
@@ -134,12 +163,13 @@ export class HydrologySystem implements ISimulationSystem {
             );
             cell.water_height += erosionAmount;
             cell.altitude = cell.terrain_height + cell.water_height;
+
+            if (!lowestCell || cell.altitude < lowestCell.altitude) {
+                lowestCell = cell;
+            }
         }
 
-        // Find the lowest point in the river
-        const lowestCell = river.points.reduce((min, current) =>
-            current.altitude < min.altitude ? current : min
-        );
+        if (!lowestCell) return false;
 
         const neighbors = GridHelper.getNeighbors(terrain, lowestCell.x, lowestCell.y);
 
@@ -194,5 +224,62 @@ export class HydrologySystem implements ISimulationSystem {
         lowestCell.altitude = lowestCell.terrain_height + lowestCell.water_height;
 
         return true;
+    }
+
+    private buildRiverQueue(): RiverQueueItem[] {
+        const queue = this.rivers.map((river) => ({
+            river,
+            priority: this.getRiverPriority(river)
+        }));
+        this.heapify(queue);
+        return queue;
+    }
+
+    private getRiverPriority(river: River): number {
+        let highestAltitude = -Infinity;
+        for (const cell of river.points) {
+            if (cell.altitude > highestAltitude) {
+                highestAltitude = cell.altitude;
+            }
+        }
+        return highestAltitude;
+    }
+
+    private heapify(queue: RiverQueueItem[]): void {
+        for (let i = Math.floor(queue.length / 2) - 1; i >= 0; i--) {
+            this.siftDown(queue, i);
+        }
+    }
+
+    private popHighestPriorityRiver(queue: RiverQueueItem[]): RiverQueueItem | undefined {
+        if (queue.length === 0) return undefined;
+        const top = queue[0];
+        const last = queue.pop();
+        if (queue.length > 0 && last) {
+            queue[0] = last;
+            this.siftDown(queue, 0);
+        }
+        return top;
+    }
+
+    private siftDown(queue: RiverQueueItem[], index: number): void {
+        let currentIndex = index;
+        while (true) {
+            const left = currentIndex * 2 + 1;
+            const right = currentIndex * 2 + 2;
+            let largest = currentIndex;
+
+            if (left < queue.length && queue[left].priority > queue[largest].priority) {
+                largest = left;
+            }
+            if (right < queue.length && queue[right].priority > queue[largest].priority) {
+                largest = right;
+            }
+
+            if (largest === currentIndex) break;
+
+            [queue[currentIndex], queue[largest]] = [queue[largest], queue[currentIndex]];
+            currentIndex = largest;
+        }
     }
 }
