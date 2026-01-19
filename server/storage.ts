@@ -1,6 +1,6 @@
 import { type TerrainCell, type TerrainGrid } from "@shared/schema";
 import { WorldGenerator } from "./worldGenerator";
-import { DEFAULT_WORLD_CONFIG, TIME_CONFIG } from "./config";
+import { DEFAULT_WORLD_CONFIG, TIME_CONFIG, VIEWPORT_CONFIG } from "./config";
 import { SimulationEngine } from "./systems/SimulationEngine";
 
 // Month information with daylight hours and base temperatures (at equator, sea level)
@@ -42,6 +42,8 @@ export interface GameTime {
 
 export interface IStorage {
   getTerrainData(): Promise<TerrainGrid>;
+  getMinimapData(resolution: number): TerrainCell[][];
+  getWorldSize(): number;
   generateTerrain(): Promise<TerrainGrid>;
   landUpdate(): Promise<void>;
   getGameTime(): GameTime;
@@ -52,6 +54,11 @@ export class MemStorage implements IStorage {
   private worldGenerator: WorldGenerator;
   private gameTime: GameTime;
   private simulationEngine: SimulationEngine;
+  private minimapCache: {
+    data: TerrainCell[][] | null;
+    timestamp: number;
+    resolution: number;
+  } = { data: null, timestamp: 0, resolution: 0 };
 
   constructor() {
     this.terrain = [];
@@ -117,6 +124,10 @@ export class MemStorage implements IStorage {
     return { ...this.gameTime };
   }
 
+  getWorldSize(): number {
+    return this.terrain.length;
+  }
+
 
   async landUpdate() {
     this.advanceTime();
@@ -125,6 +136,44 @@ export class MemStorage implements IStorage {
 
   async getTerrainData(): Promise<TerrainGrid> {
     return this.terrain;
+  }
+
+  getMinimapData(resolution: number): TerrainCell[][] {
+    const now = Date.now();
+    const cacheValid = this.minimapCache.data
+      && this.minimapCache.resolution === resolution
+      && (now - this.minimapCache.timestamp) < VIEWPORT_CONFIG.MINIMAP_CACHE_TTL;
+
+    if (cacheValid) {
+      return this.minimapCache.data!;
+    }
+
+    const minimap = this.generateMinimap(resolution);
+    this.minimapCache = { data: minimap, timestamp: now, resolution };
+    return minimap;
+  }
+
+  private generateMinimap(resolution: number): TerrainCell[][] {
+    const gridSize = this.terrain.length;
+    if (gridSize === 0) {
+      return [];
+    }
+    const clampedResolution = Math.max(1, Math.min(resolution, gridSize));
+    const samplingInterval = Math.max(1, Math.floor(gridSize / clampedResolution));
+    const minimap: TerrainCell[][] = [];
+
+    for (let y = 0; y < clampedResolution; y += 1) {
+      const row: TerrainCell[] = [];
+      const sourceY = (y * samplingInterval) % gridSize;
+      const terrainRow = this.terrain[sourceY];
+      for (let x = 0; x < clampedResolution; x += 1) {
+        const sourceX = (x * samplingInterval) % gridSize;
+        row.push(terrainRow[sourceX]);
+      }
+      minimap.push(row);
+    }
+
+    return minimap;
   }
 
   async generateTerrain(): Promise<TerrainGrid> {
