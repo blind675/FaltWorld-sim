@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   TerrainCanvas,
@@ -13,7 +12,8 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { useEffect, useState, useCallback } from "react";
-import { type TerrainGrid, type TerrainCell } from "@shared/schema";
+import { type TerrainCell } from "@shared/schema";
+import { ViewportManager } from "@/lib/viewportManager";
 import {
   RefreshCw,
   Eye,
@@ -46,11 +46,16 @@ type CellInfo = {
   screenY: number;
 };
 
-export default function Home() {
-  const [refreshInterval, setRefreshInterval] = useState(1); // 1 seconds to match server interval
+type HomeProps = {
+  viewportManager: ViewportManager;
+};
+
+export default function Home({ viewportManager }: HomeProps) {
+  const [refreshInterval, setRefreshInterval] = useState(30);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [timeUntilRefresh, setTimeUntilRefresh] = useState(refreshInterval);
   const [selectedCell, setSelectedCell] = useState<CellInfo | null>(null);
+  const [refreshToken, setRefreshToken] = useState(0);
 
   // Visualization settings state
   const [visualizationSettings, setVisualizationSettings] =
@@ -67,43 +72,53 @@ export default function Home() {
       panOffset: { x: 0, y: 0 },
     });
 
-  const {
-    data: terrain,
-    isLoading,
-    refetch,
-  } = useQuery<TerrainGrid>({
-    queryKey: ["/api/terrain"],
-    // Don't refetch automatically on window focus as we're managing it manually
-    refetchOnWindowFocus: false,
-  });
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const response = await apiRequest("GET", "/api/config");
+        const data = (await response.json()) as { updateInterval?: number };
+        if (data.updateInterval) {
+          const intervalSeconds = Math.max(
+            1,
+            Math.round(data.updateInterval / 1000),
+          );
+          setRefreshInterval(intervalSeconds);
+          setTimeUntilRefresh(intervalSeconds);
+        }
+      } catch (error) {
+        console.error("Failed to load config", error);
+      }
+    };
+
+    void loadConfig();
+  }, []);
+
+  useEffect(() => {
+    setTimeUntilRefresh(refreshInterval);
+  }, [refreshInterval]);
 
   // Manual refresh handler
-  const handleManualRefresh = useCallback(async () => {
-    // Manually fetch new data from backend
-    await refetch();
+  const handleManualRefresh = useCallback(() => {
+    viewportManager.invalidateCache();
+    setRefreshToken((token) => token + 1);
 
-    // Reset timers
     setLastRefresh(new Date());
     setTimeUntilRefresh(refreshInterval);
 
     console.log("Map manually refreshed");
-  }, [refetch, refreshInterval]);
+  }, [viewportManager, refreshInterval]);
 
   // Auto-refresh timer
   useEffect(() => {
-    const timer = setInterval(async () => {
-      // Need to manually call API for terrain update
-      try {
-        await refetch();
-        setLastRefresh(new Date());
-        setTimeUntilRefresh(refreshInterval);
-      } catch (error) {
-        console.error("Error during auto-refresh:", error);
-      }
+    const timer = setInterval(() => {
+      viewportManager.invalidateCache();
+      setRefreshToken((token) => token + 1);
+      setLastRefresh(new Date());
+      setTimeUntilRefresh(refreshInterval);
     }, refreshInterval * 1000);
 
     return () => clearInterval(timer);
-  }, [refetch, refreshInterval]);
+  }, [viewportManager, refreshInterval]);
 
   // Countdown timer
   useEffect(() => {
@@ -128,8 +143,8 @@ export default function Home() {
       // Generate new terrain on the backend
       await apiRequest("POST", "/api/terrain/generate");
 
-      // Fetch the new terrain data to update the UI
-      await refetch();
+      viewportManager.invalidateCache();
+      setRefreshToken((token) => token + 1);
 
       // Reset timers
       setLastRefresh(new Date());
@@ -141,34 +156,25 @@ export default function Home() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-pulse">Loading terrain...</div>
-      </div>
-    );
-  }
-
   return (
     <div className="container mx-auto p-4 min-h-screen">
       <div className="flex flex-row gap-4">
         {/* Terrain Canvas */}
         <div className="flex-shrink-0">
-          {terrain && (
-            <TerrainCanvas
-              terrain={terrain}
-              width={800}
-              height={800}
-              onCellSelect={setSelectedCell}
-              visualizationSettings={visualizationSettings}
-              onVisualizationSettingsChange={(settings) => {
-                setVisualizationSettings({
-                  ...visualizationSettings,
-                  ...settings
-                });
-              }}
-            />
-          )}
+          <TerrainCanvas
+            viewportManager={viewportManager}
+            width={800}
+            height={800}
+            onCellSelect={setSelectedCell}
+            visualizationSettings={visualizationSettings}
+            onVisualizationSettingsChange={(settings) => {
+              setVisualizationSettings({
+                ...visualizationSettings,
+                ...settings,
+              });
+            }}
+            refreshToken={refreshToken}
+          />
         </div>
 
         {/* Controls and Info */}

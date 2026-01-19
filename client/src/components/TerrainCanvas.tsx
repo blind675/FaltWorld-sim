@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { type TerrainGrid, type TerrainCell } from "@shared/schema";
+import { ViewportManager } from "@/lib/viewportManager";
 
 // Visualization settings interface
 export interface VisualizationSettings {
@@ -16,7 +17,9 @@ export interface VisualizationSettings {
 }
 
 interface TerrainCanvasProps {
-  terrain: TerrainGrid;
+  terrain?: TerrainGrid;
+  viewportManager?: ViewportManager;
+  refreshToken?: number;
   width: number;
   height: number;
   onCellSelect?: (cellInfo: CellInfo | null) => void;
@@ -36,6 +39,8 @@ interface CellInfo {
 
 export function TerrainCanvas({
   terrain,
+  viewportManager,
+  refreshToken = 0,
   width,
   height,
   onCellSelect,
@@ -47,6 +52,13 @@ export function TerrainCanvas({
   const [hoveredCell, setHoveredCell] = useState<CellInfo | null>(null);
   const [selectedCell, setSelectedCell] = useState<CellInfo | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [renderTerrain, setRenderTerrain] = useState<TerrainGrid>(
+    terrain ?? [],
+  );
+  const [isLoading, setIsLoading] = useState(false);
+  const [worldSize, setWorldSize] = useState(
+    terrain?.length ?? viewportManager?.getWorldSize() ?? 0,
+  );
 
   // Default visualization settings
   const defaultSettings: VisualizationSettings = {
@@ -67,6 +79,147 @@ export function TerrainCanvas({
     ...defaultSettings,
     ...visualizationSettings,
   };
+
+  const terrainGrid = terrain ?? renderTerrain;
+
+  const createEmptyGrid = (size: number): TerrainGrid =>
+    Array.from({ length: size }, () => Array<TerrainCell>(size));
+
+  const getViewportBounds = () => {
+    if (!worldSize) {
+      return null;
+    }
+
+    const zoomLevel = settings.zoomLevel || 1.0;
+    const panOffset = settings.panOffset || { x: 0, y: 0 };
+
+    const cellWidth = (width / worldSize) * zoomLevel;
+    const cellHeight = (height / worldSize) * zoomLevel;
+    const worldWidth = worldSize * cellWidth;
+    const worldHeight = worldSize * cellHeight;
+
+    const normalizedPanX =
+      ((panOffset.x % worldWidth) + worldWidth) % worldWidth;
+    const normalizedPanY =
+      ((panOffset.y % worldHeight) + worldHeight) % worldHeight;
+
+    const startX = Math.floor(-normalizedPanX / cellWidth);
+    const startY = Math.floor(-normalizedPanY / cellHeight);
+    const endX = Math.ceil((width - normalizedPanX) / cellWidth);
+    const endY = Math.ceil((height - normalizedPanY) / cellHeight);
+
+    return {
+      startX,
+      startY,
+      width: Math.max(1, endX - startX),
+      height: Math.max(1, endY - startY),
+    };
+  };
+
+  useEffect(() => {
+    if (terrain) {
+      setRenderTerrain(terrain);
+      setWorldSize(terrain.length);
+    }
+  }, [terrain]);
+
+  useEffect(() => {
+    if (!viewportManager || terrain) {
+      return;
+    }
+
+    const bounds = getViewportBounds();
+    if (!bounds) {
+      return;
+    }
+
+    let isActive = true;
+    setIsLoading(true);
+
+    viewportManager
+      .getViewportData(bounds.startX, bounds.startY, bounds.width, bounds.height)
+      .then((viewport) => {
+        if (!isActive) {
+          return;
+        }
+        const nextWorldSize = viewportManager.getWorldSize();
+        setWorldSize(nextWorldSize);
+        setRenderTerrain((prev) => {
+          const shouldReuse = prev.length === nextWorldSize;
+          const base = shouldReuse ? [...prev] : createEmptyGrid(nextWorldSize);
+
+          for (let row = 0; row < bounds.height; row += 1) {
+            const viewportRow = viewport[row];
+            if (!viewportRow) continue;
+
+            const worldY =
+              ((bounds.startY + row) % nextWorldSize + nextWorldSize) %
+              nextWorldSize;
+            const baseRow = base[worldY];
+            const nextRow = shouldReuse ? [...baseRow] : baseRow;
+
+            for (let col = 0; col < bounds.width; col += 1) {
+              const cell = viewportRow[col];
+              if (!cell) continue;
+              const worldX =
+                ((bounds.startX + col) % nextWorldSize + nextWorldSize) %
+                nextWorldSize;
+              nextRow[worldX] = cell;
+            }
+
+            base[worldY] = nextRow;
+          }
+
+          return base;
+        });
+      })
+      .catch((error) => {
+        console.error("Failed to load viewport data", error);
+      })
+      .finally(() => {
+        if (isActive) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [
+    viewportManager,
+    terrain,
+    width,
+    height,
+    settings.zoomLevel,
+    settings.panOffset,
+    refreshToken,
+    worldSize,
+  ]);
+
+  useEffect(() => {
+    if (!viewportManager || terrain) {
+      return;
+    }
+
+    const bounds = getViewportBounds();
+    if (!bounds) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      viewportManager.prefetchAdjacent(bounds.startX, bounds.startY);
+    }, 500);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    viewportManager,
+    terrain,
+    width,
+    height,
+    settings.zoomLevel,
+    settings.panOffset,
+    worldSize,
+  ]);
 
   // Helper function to get cell color based on visualization settings
   const getCellColor = (cell: TerrainCell) => {
@@ -240,13 +393,13 @@ export function TerrainCanvas({
 
   // Draw the terrain grid
   useEffect(() => {
-    if (!canvasRef.current || !terrain.length) return;
+    if (!canvasRef.current || !terrainGrid.length) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const gridSize = terrain.length;
+    const gridSize = terrainGrid.length;
 
     // Apply zoom and pan transformations
     const zoomLevel = settings.zoomLevel || 1.0;
@@ -284,7 +437,7 @@ export function TerrainCanvas({
         const wrappedX = ((x % gridSize) + gridSize) % gridSize;
         const wrappedY = ((y % gridSize) + gridSize) % gridSize;
 
-        const cell = terrain[wrappedY][wrappedX];
+        const cell = terrainGrid[wrappedY][wrappedX];
         if (!cell) continue;
 
         // Get cell color based on visualization settings
@@ -310,7 +463,7 @@ export function TerrainCanvas({
             screenNeighborX: number,
             screenNeighborY: number,
           ) => {
-            const neighborCell = terrain[neighborY][neighborX];
+            const neighborCell = terrainGrid[neighborY][neighborX];
             if (
               !neighborCell ||
               (neighborCell.type !== "river" && neighborCell.type !== "spring") ||
@@ -421,18 +574,18 @@ export function TerrainCanvas({
 
     // Restore the context state
     ctx.restore();
-  }, [terrain, width, height, hoveredCell, selectedCell, settings]);
+  }, [terrainGrid, width, height, hoveredCell, selectedCell, settings]);
 
   // Draw the minimap
   useEffect(() => {
-    if (!minimapRef.current || !terrain.length) return;
+    if (!minimapRef.current || !terrainGrid.length) return;
 
     const minimap = minimapRef.current;
     const ctx = minimap.getContext("2d");
     if (!ctx) return;
 
     const minimapSize = 150; // Size of the minimap
-    const gridSize = terrain.length;
+    const gridSize = terrainGrid.length;
     const cellSize = minimapSize / gridSize;
 
     // Clear the minimap
@@ -441,7 +594,7 @@ export function TerrainCanvas({
     // Draw the terrain on the minimap (simplified version)
     for (let y = 0; y < gridSize; y++) {
       for (let x = 0; x < gridSize; x++) {
-        const cell = terrain[y][x];
+        const cell = terrainGrid[y][x];
         if (!cell) continue;
 
         // Use simplified color scheme for minimap
@@ -566,11 +719,11 @@ export function TerrainCanvas({
         topHeight * cellSize
       );
     }
-  }, [terrain, width, height, settings, getCellColor]);
+  }, [terrainGrid, width, height, settings, getCellColor]);
 
   // Mouse move handler to determine hovered cell
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!canvasRef.current || !terrain.length) return;
+    if (!canvasRef.current || !terrainGrid.length) return;
 
     // Get canvas position and mouse coordinates
     const canvas = canvasRef.current;
@@ -585,7 +738,7 @@ export function TerrainCanvas({
     const panOffset = settings.panOffset || { x: 0, y: 0 };
 
     // Calculate cell coordinates accounting for zoom and pan
-    const gridSize = terrain.length;
+    const gridSize = terrainGrid.length;
     const cellWidth = (width / gridSize) * zoomLevel;
     const cellHeight = (height / gridSize) * zoomLevel;
 
@@ -609,7 +762,7 @@ export function TerrainCanvas({
     const cellX = ((rawCellX % gridSize) + gridSize) % gridSize;
     const cellY = ((rawCellY % gridSize) + gridSize) % gridSize;
 
-    const cell = terrain[cellY][cellX];
+    const cell = terrainGrid[cellY][cellX];
     if (cell) {
       setHoveredCell({
         cell,
@@ -684,7 +837,7 @@ export function TerrainCanvas({
   // Mouse click handler to select a cell
   const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     // Skip if right button or middle button (used for panning)
-    if (e.button !== 0 || !canvasRef.current || !terrain.length) return;
+    if (e.button !== 0 || !canvasRef.current || !terrainGrid.length) return;
 
     // Get canvas position and mouse coordinates
     const canvas = canvasRef.current;
@@ -697,7 +850,7 @@ export function TerrainCanvas({
     const panOffset = settings.panOffset || { x: 0, y: 0 };
 
     // Calculate cell coordinates accounting for zoom and pan
-    const gridSize = terrain.length;
+    const gridSize = terrainGrid.length;
     const cellWidth = (width / gridSize) * zoomLevel;
     const cellHeight = (height / gridSize) * zoomLevel;
 
@@ -721,7 +874,7 @@ export function TerrainCanvas({
     const cellX = ((rawCellX % gridSize) + gridSize) % gridSize;
     const cellY = ((rawCellY % gridSize) + gridSize) % gridSize;
 
-    const cell = terrain[cellY][cellX];
+    const cell = terrainGrid[cellY][cellX];
     if (cell) {
       const cellInfo = {
         cell,
@@ -761,6 +914,12 @@ export function TerrainCanvas({
         onMouseDown={handleMouseDown}
         onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right click
       />
+
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+          <div className="text-white">Loading viewport...</div>
+        </div>
+      )}
 
       {/* Minimap */}
       <div className="absolute bottom-4 right-4 border-2 border-gold rounded-lg shadow-lg bg-black/50 backdrop-blur-sm">
