@@ -21,6 +21,7 @@ All simulation systems are located in `server/systems/`:
 - **`EvaporationSystem.ts`** - Water evaporation and evapotranspiration
 - **`HumiditySystem.ts`** - Air humidity diffusion and saturation
 - **`CondensationSystem.ts`** - Air-to-ground moisture transfer
+- **`WeatherSystem.ts`** - Atmospheric pressure and wind generation
 - **`GridHelper.ts`** - Shared utilities for grid operations with world wrapping
 
 Each system implements the `ISimulationSystem` interface with a single `update(terrain, gameTime)` method.
@@ -58,22 +59,36 @@ Each system implements the `ISimulationSystem` interface with a single `update(t
   - Precomputed seasonal factor for performance (single calculation per tick)
   - Realistic temperature ranges: 2°C seasonal amplitude at equator, 15°C at poles
   - Scales to large maps (90k cells per update cycle)
+- **Weather System**:
+  - Atmospheric pressure calculated from altitude, temperature, and humidity
+  - Wind generation from pressure gradients (flows high → low pressure)
+  - Wind speed and direction stored per cell
+  - Configurable max wind speed and smoothing factors
+- **Viewport System**:
+  - Logarithmic zoom slider (20x20 to 100x100 cells visible)
+  - Click-drag panning with world wrapping support
+  - Optimized minimap with 10-minute terrain cache
+  - Real-time viewport indicator updates during navigation
+- **Visualization Modes**:
+  - Default, Heightmap, Moisture, Temperature, Humidity
+  - **Wind mode**: Color-coded wind speed with directional arrows
+  - Cell info panel shows wind speed (m/s) and direction (degrees)
 
 ### Known Issues
 - River visualization could be enhanced with better stream tracking
 
-### Next Steps (Phase 2 - Per PDR)
+### Next Steps (Phase 2 Remaining)
 
-**Viewport System:**
-- Implement viewport API endpoints (`/api/viewport`, `/api/minimap`)
-- Create zoomable/pannable canvas (3x3 to 100x100 cells)
-- Build minimap component with click-to-center navigation
+**Weather System (remaining):**
+- Wind-based humidity and heat transport
+- Cloud formation and dynamics
+- Precipitation system (rain/snow)
+- Snow accumulation and melting
 
-**Weather System:**
-- Create `WeatherSystem.ts` with atmospheric pressure calculations
-- Implement wind generation from pressure gradients
-- Add cloud formation and dynamics
-- Implement precipitation system (rain/snow)
+**Weather Visualization (remaining):**
+- Pressure map color layer
+- Cloud overlay visualization
+- Precipitation animation
 
 **Future Phases:**
 - Phase 3: Ecology (grass, trees, mushrooms)

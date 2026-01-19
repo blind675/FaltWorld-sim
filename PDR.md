@@ -184,6 +184,18 @@ Create an ever-evolving procedural world that simulates natural systems with suf
   - Dew formation in cold conditions
   - 62 lines, fully self-contained
 
+#### Weather System (`server/systems/WeatherSystem.ts`) ✅ IMPLEMENTED
+- **Atmospheric pressure calculation:**
+  - Pressure based on altitude, temperature, and humidity
+  - Configurable base pressure and factor coefficients
+- **Wind generation from pressure gradients:**
+  - Wind flows from high to low pressure
+  - Pressure gradient neighbors used for direction calculation
+  - Wind speed capped at configurable maximum
+  - Wind direction stored in degrees (0° = North, clockwise)
+- **Wind smoothing:** Blends new wind with previous for stability
+- **Independent module:** 113 lines, fully self-contained
+
 #### Temperature System (`server/systems/TemperatureSystem.ts`)
 - **Latitude-based base temperature:** Equator warm, poles cold
 - **Altitude effects:** Higher elevation = cooler
@@ -201,7 +213,26 @@ Create an ever-evolving procedural world that simulates natural systems with suf
 - **Game clock display:** Animated analog + digital time/date
 - **Daylight indicator:** Current day/night status
 - **Canvas terrain rendering:** Visual representation of world state
-- **Basic minimap:** Full-world overview with viewport indicator
+- **Enhanced minimap:** 
+  - Full-world overview with viewport indicator
+  - **Cached rendering:** Terrain re-renders every 10 minutes for performance
+  - **Real-time viewport indicator:** Gold rectangle updates instantly during pan/zoom
+  - **Color mode sync:** Re-renders when visualization color mode changes
+- **Viewport System:**
+  - **Logarithmic zoom:** Smooth zoom from 20x20 to 100x100 cells
+  - **Pan controls:** Click-drag navigation with world wrapping
+  - **Dynamic zoom slider:** Non-linear for consistent feel across range
+- **Visualization Modes:**
+  - Default terrain colors
+  - Heightmap (blue-white-brown gradient)
+  - Moisture (white-blue gradient)
+  - Temperature (blue-cyan-green-yellow-red gradient)
+  - Humidity (tan-blue gradient)
+  - **Wind mode:** Background color by speed + directional arrows
+- **Cell Information Panel:**
+  - Coordinates, altitude, terrain type
+  - Temperature, humidity, moisture values
+  - **Wind speed (m/s) and direction (degrees)**
 
 #### Performance Baseline
 - **Tested at 300x300 and 500x500:** Smooth performance
@@ -916,26 +947,26 @@ Returns: {
 - Basic client rendering
 - Performance baseline established
 
-### Phase 2: Viewport & Weather (CURRENT - Next 3-6 months)
+### Phase 2: Viewport & Weather (IN PROGRESS)
 
-**Milestone 2.1: Viewport System**
-- [ ] Implement viewport API endpoints
-- [ ] Create low-res minimap generation
-- [ ] Build zoomable/pannable canvas
-- [ ] Add navigation controls
-- [ ] Implement minimap caching strategy
+**Milestone 2.1: Viewport System** ✅ COMPLETE
+- [x] Implement viewport API endpoints
+- [x] Create low-res minimap generation
+- [x] Build zoomable/pannable canvas (20x20 to 100x100 cells)
+- [x] Add navigation controls (logarithmic zoom, pan)
+- [x] Implement minimap caching strategy (10-minute refresh)
 
-**Milestone 2.2: Weather System**
-- [ ] Atmospheric pressure calculation
-- [ ] Wind generation from pressure gradients
+**Milestone 2.2: Weather System** 🔄 PARTIAL
+- [x] Atmospheric pressure calculation
+- [x] Wind generation from pressure gradients
 - [ ] Wind-based humidity/heat transport
 - [ ] Cloud formation and dynamics
 - [ ] Precipitation system (rain/snow)
 - [ ] Closed-loop integration testing
 
-**Milestone 2.3: Weather Visualization**
+**Milestone 2.3: Weather Visualization** 🔄 PARTIAL
 - [ ] Pressure map layer
-- [ ] Wind vector rendering
+- [x] Wind vector rendering (directional arrows with intensity-based sizing)
 - [ ] Cloud overlay
 - [ ] Precipitation animation
 - [ ] Snow accumulation display

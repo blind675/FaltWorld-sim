@@ -61,25 +61,32 @@ export class SimulationEngine {
         if (shouldLog) console.timeEnd("Temperature");
 
         // 2. Calculate pressure and wind
+        if (shouldLog) console.time("Weather");
         this.weatherSystem.update(terrain, gameTime);
+        if (shouldLog) console.timeEnd("Weather");
 
         // 3. Process hydrology (river flow, erosion)
+        if (shouldLog) console.time("Hydrology");
         this.hydrologySystem.update(terrain, gameTime);
         if (shouldLog) console.timeEnd("Hydrology");
 
         // 4. Adjust humidity for temperature changes and diffuse
+        if (shouldLog) console.time("Humidity");
         this.humiditySystem.update(terrain, gameTime);
         if (shouldLog) console.timeEnd("Humidity");
 
         // 5. Evaporation from water bodies and ground
+        if (shouldLog) console.time("Evaporation");
         this.evaporationSystem.update(terrain, gameTime);
         if (shouldLog) console.timeEnd("Evaporation");
 
         // 6. Condensation (oversaturation → ground moisture)
+        if (shouldLog) console.time("Condensation");
         this.condensationSystem.update(terrain, gameTime);
         if (shouldLog) console.timeEnd("Condensation");
 
         // 7. Ground moisture propagation
+        if (shouldLog) console.time("Moisture");
         this.moistureSystem.update(terrain, gameTime);
         if (shouldLog) console.timeEnd("Moisture");
 

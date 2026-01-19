@@ -12,7 +12,7 @@ Successfully refactored `storage.ts` from a monolithic 847-line file into a modu
 - **Merge conflicts**: Multiple agents would conflict editing the same file
 
 ### After Refactoring
-- **Modular systems**: 8 separate, focused files
+- **Modular systems**: 9 separate, focused files
 - **Loose coupling**: Systems operate independently on shared terrain data
 - **Easy to test**: Each system can be tested in isolation
 - **Parallel-ready**: Agents can work on different systems without conflicts
@@ -31,6 +31,7 @@ server/
 │   ├── HumiditySystem.ts          # Air humidity diffusion (117 lines)
 │   ├── CondensationSystem.ts     # Air → ground moisture (62 lines)
 │   ├── TemperatureSystem.ts      # Temperature calculations (67 lines)
+│   ├── WeatherSystem.ts          # Pressure & wind generation (113 lines) ✅ NEW
 │   └── SimulationEngine.ts        # Orchestrates all systems (68 lines)
 └── storage.ts                      # Simplified to 163 lines (was 847)
 ```
@@ -71,14 +72,22 @@ server/
 - Day/night cycles
 - Seasonal variations
 
+#### **WeatherSystem** (`server/systems/WeatherSystem.ts`) ✅ NEW
+- Atmospheric pressure calculation (altitude, temperature, humidity factors)
+- Wind generation from pressure gradients
+- Wind direction (degrees, 0° = North, clockwise)
+- Wind speed with configurable maximum
+- Wind smoothing for stability
+
 #### **SimulationEngine** (`server/systems/SimulationEngine.ts`)
 Orchestrates system execution in correct order:
 1. Temperature (affects saturation capacity)
-2. Hydrology (river flow, erosion)
-3. Humidity (adjust for temp changes, diffuse)
-4. Evaporation (water → air)
-5. Condensation (air → ground)
-6. Moisture (ground propagation)
+2. Weather (pressure and wind from temperature/humidity)
+3. Hydrology (river flow, erosion)
+4. Humidity (adjust for temp changes, diffuse)
+5. Evaporation (water → air)
+6. Condensation (air → ground)
+7. Moisture (ground propagation)
 
 #### **GridHelper** (`server/systems/GridHelper.ts`)
 - Shared utility for neighbor calculations
@@ -152,20 +161,25 @@ npm run dev
 
 ## Next Steps for Parallel Development
 
-### Phase 2.1: Viewport System (Agent 1)
-**Files to create/modify:**
-- `server/routes.ts` - Add `/api/viewport` and `/api/minimap` endpoints
-- `client/src/components/Viewport.tsx` - Zoomable/pannable canvas
-- `client/src/components/Minimap.tsx` - Low-res world overview
+### Phase 2.1: Viewport System ✅ COMPLETE
+**Implemented:**
+- Logarithmic zoom slider (20x20 to 100x100 cells)
+- Click-drag panning with world wrapping
+- Minimap with 10-minute terrain cache
+- Real-time viewport indicator
+- Multiple visualization color modes
 
-**No conflicts with**: Weather, ecology, or other backend systems
+### Phase 2.2: Weather System 🔄 PARTIAL
+**Implemented:**
+- `server/systems/WeatherSystem.ts` - Pressure and wind generation
+- `server/config.ts` - Weather configuration (WEATHER_CONFIG)
+- Wind visualization with directional arrows
+- Cell info panel shows wind speed/direction
 
-### Phase 2.2: Weather System (Agent 2)
-**Files to create:**
-- `server/systems/WeatherSystem.ts` - Pressure, wind, clouds, precipitation
-- `server/config.ts` - Add weather configuration section
-
-**Integration point**: Add to `SimulationEngine.ts` (single line change)
+**Remaining:**
+- Wind-based humidity/heat transport
+- Cloud formation and dynamics
+- Precipitation system (rain/snow)
 
 ### Phase 3: Ecology System (Agent 3)
 **Files to create:**

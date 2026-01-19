@@ -22,6 +22,7 @@ import {
   Grid,
   MapPin,
   Thermometer,
+  Wind,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -56,6 +57,30 @@ export default function Home({ viewportManager }: HomeProps) {
   const [timeUntilRefresh, setTimeUntilRefresh] = useState(refreshInterval);
   const [selectedCell, setSelectedCell] = useState<CellInfo | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
+  const [terrain, setTerrain] = useState<any>(null);
+
+  // Canvas dimensions
+  const canvasWidth = 800;
+  const canvasHeight = 800;
+
+  // Calculate zoom levels to show 20x20 (max zoom) to 100x100 (min zoom) cells
+  const worldSize = 1000;
+  const minCellsVisible = 20;  // max zoom shows 20x20 cells
+  const maxCellsVisible = 100; // min zoom shows 100x100 cells
+  const maxZoom = (canvasWidth / worldSize) * (worldSize / minCellsVisible);  // 40
+  const minZoom = (canvasWidth / worldSize) * (worldSize / maxCellsVisible);  // 8
+
+  // Logarithmic zoom conversion for smooth feel across the range
+  // Slider value is 0-1, convert to/from actual zoom level using log scale
+  const sliderToZoom = (sliderValue: number): number => {
+    // Use exponential interpolation: zoom = minZoom * (maxZoom/minZoom)^sliderValue
+    return minZoom * Math.pow(maxZoom / minZoom, sliderValue);
+  };
+  const zoomToSlider = (zoomLevel: number): number => {
+    // Inverse: sliderValue = log(zoom/minZoom) / log(maxZoom/minZoom)
+    return Math.log(zoomLevel / minZoom) / Math.log(maxZoom / minZoom);
+  };
+  const defaultZoom = sliderToZoom(0.5); // Start at middle of log scale (~50x50 cells)
 
   // Visualization settings state
   const [visualizationSettings, setVisualizationSettings] =
@@ -68,7 +93,7 @@ export default function Home({ viewportManager }: HomeProps) {
       contourInterval: 100,
       colorMode: "default",
       wireframe: false,
-      zoomLevel: 2.0,
+      zoomLevel: defaultZoom, // Start at middle of log scale (~50x50 cells)
       panOffset: { x: 0, y: 0 },
     });
 
@@ -92,6 +117,21 @@ export default function Home({ viewportManager }: HomeProps) {
 
     void loadConfig();
   }, []);
+
+  // Fetch terrain data (full grid for now - viewport chunking needs more work)
+  useEffect(() => {
+    const fetchTerrain = async () => {
+      try {
+        const response = await apiRequest("GET", "/api/terrain");
+        const data = await response.json();
+        setTerrain(data);
+      } catch (error) {
+        console.error("Failed to fetch terrain", error);
+      }
+    };
+
+    void fetchTerrain();
+  }, [refreshToken]);
 
   useEffect(() => {
     setTimeUntilRefresh(refreshInterval);
@@ -162,9 +202,9 @@ export default function Home({ viewportManager }: HomeProps) {
         {/* Terrain Canvas */}
         <div className="flex-shrink-0">
           <TerrainCanvas
-            viewportManager={viewportManager}
-            width={800}
-            height={800}
+            terrain={terrain}
+            width={canvasWidth}
+            height={canvasHeight}
             onCellSelect={setSelectedCell}
             visualizationSettings={visualizationSettings}
             onVisualizationSettingsChange={(settings) => {
@@ -173,7 +213,6 @@ export default function Home({ viewportManager }: HomeProps) {
                 ...settings,
               });
             }}
-            refreshToken={refreshToken}
           />
         </div>
 
@@ -261,6 +300,16 @@ export default function Home({ viewportManager }: HomeProps) {
                       Air Humidity:
                     </div>
                     <div>{(selectedCell.cell.air_humidity * 100).toFixed(1)}%</div>
+
+                    <div className="font-semibold flex items-center gap-1">
+                      <Wind className="h-4 w-4" />
+                      Wind:
+                    </div>
+                    <div>
+                      {selectedCell.cell.wind_speed != null
+                        ? `${selectedCell.cell.wind_speed.toFixed(1)} m/s @ ${selectedCell.cell.wind_direction?.toFixed(0)}°`
+                        : "N/A"}
+                    </div>
                   </div>
                 </div>
               )}
@@ -291,7 +340,8 @@ export default function Home({ viewportManager }: HomeProps) {
                                 | "heightmap"
                                 | "moisture"
                                 | "temperature"
-                                | "humidity",
+                                | "humidity"
+                                | "wind",
                             });
                           }}
                         >
@@ -307,6 +357,9 @@ export default function Home({ viewportManager }: HomeProps) {
                             </SelectItem>
                             <SelectItem value="humidity">
                               Humidity
+                            </SelectItem>
+                            <SelectItem value="wind">
+                              Wind
                             </SelectItem>
                           </SelectContent>
                         </Select>
@@ -380,19 +433,19 @@ export default function Home({ viewportManager }: HomeProps) {
                                 <line x1="11" y1="8" x2="11" y2="14"></line>
                                 <line x1="8" y1="11" x2="14" y2="11"></line>
                               </svg>
-                              Zoom Level: {visualizationSettings.zoomLevel.toFixed(1)}x
+                              Zoom: {Math.round((canvasWidth / worldSize) * (worldSize / visualizationSettings.zoomLevel))}x{Math.round((canvasHeight / worldSize) * (worldSize / visualizationSettings.zoomLevel))} cells
                             </Label>
                           </div>
                           <Slider
                             id="zoom-level"
-                            min={1.5}
-                            max={3}
-                            step={0.1}
-                            value={[visualizationSettings.zoomLevel]}
+                            min={0}
+                            max={1}
+                            step={0.01}
+                            value={[zoomToSlider(visualizationSettings.zoomLevel)]}
                             onValueChange={(value) => {
                               setVisualizationSettings({
                                 ...visualizationSettings,
-                                zoomLevel: value[0],
+                                zoomLevel: sliderToZoom(value[0]),
                               });
                             }}
                           />
@@ -400,6 +453,7 @@ export default function Home({ viewportManager }: HomeProps) {
 
                         <div className="text-sm text-muted-foreground mt-1">
                           <p>Use the slider above to zoom and pan with middle/right click drag.</p>
+                          <p className="mt-1">Zoom range: {minCellsVisible}x{minCellsVisible} to {maxCellsVisible}x{maxCellsVisible} cells</p>
                           <Button
                             variant="outline"
                             size="sm"
@@ -407,7 +461,7 @@ export default function Home({ viewportManager }: HomeProps) {
                             onClick={() => {
                               setVisualizationSettings({
                                 ...visualizationSettings,
-                                zoomLevel: 2.0,
+                                zoomLevel: defaultZoom,
                                 panOffset: { x: 0, y: 0 }
                               });
                             }}
