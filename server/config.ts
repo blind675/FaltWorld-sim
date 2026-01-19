@@ -96,3 +96,16 @@ export const CONDENSATION_CONFIG = {
     DEW_CONDENSATION_RATE: 0.1,         // 10% per tick dew rate
     AIR_TO_GROUND_FACTOR: 0.05,         // conversion to ground moisture
 };
+
+export const WEATHER_CONFIG = {
+    // Pressure calculation
+    BASE_PRESSURE: 1013.25,        // Sea level pressure in hPa
+    PRESSURE_LAPSE_RATE: 0.12,     // hPa per meter altitude
+    TEMP_PRESSURE_FACTOR: 0.4,     // Pressure change per °C
+    HUMIDITY_PRESSURE_FACTOR: 2,   // Pressure change per humidity unit
+
+    // Wind generation
+    WIND_GENERATION_FACTOR: 2.0,   // m/s per hPa pressure difference
+    MAX_WIND_SPEED: 30,            // Maximum wind speed in m/s
+    WIND_SMOOTHING_FACTOR: 0.3,    // Smoothing between ticks (0-1)
+};
