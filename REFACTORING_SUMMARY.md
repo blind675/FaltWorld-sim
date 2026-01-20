@@ -35,6 +35,7 @@ server/
 │   ├── WindTransportSystem.ts    # Wind-driven humidity/heat transport
 │   ├── CloudSystem.ts            # Cloud formation and advection
 │   ├── PrecipitationSystem.ts    # Rainfall and ground wetness
+│   ├── GrassSystem.ts            # Grass growth and spreading
 │   └── SimulationEngine.ts        # Orchestrates all systems (68 lines)
 └── storage.ts                      # Simplified to 163 lines (was 847)
 ```
@@ -96,6 +97,11 @@ server/
 - Ground wetness tracking and drying
 - Moisture absorption and cooling effects
 
+#### **GrassSystem** (`server/systems/GrassSystem.ts`)
+- Species-driven growth, dormancy, and health tracking
+- Spreading to neighboring cells with configurable probabilities
+- Environmental constraints (moisture, temperature, altitude, water)
+
 #### **SimulationEngine** (`server/systems/SimulationEngine.ts`)
 Orchestrates system execution in correct order:
 1. Temperature (affects saturation capacity)
@@ -108,6 +114,7 @@ Orchestrates system execution in correct order:
 8. Humidity (adjust for temp changes, diffuse)
 9. Condensation (air → ground)
 10. Moisture (ground propagation)
+11. Grass (growth, dormancy, spreading)
 
 #### **GridHelper** (`server/systems/GridHelper.ts`)
 - Shared utility for neighbor calculations

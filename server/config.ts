@@ -70,6 +70,99 @@ export const MOISTURE_CONFIG = {
     baseDecay: 0.995,                     // Global evaporation (0.5% - this value = % moisture lost per tick)
 };
 
+export interface GrassSpecies {
+    id: string;
+    name: string;
+    // Temperature preferences (°C)
+    minGrowthTemp: number;       // Below this: dormant
+    optimalTempMin: number;      // Optimal growth range start
+    optimalTempMax: number;      // Optimal growth range end
+    maxGrowthTemp: number;       // Above this: heat stress
+    // Moisture preferences (0-1)
+    minMoisture: number;         // Below this: dies
+    optimalMoistureMin: number;
+    optimalMoistureMax: number;
+    maxMoisture: number;         // Above this: root rot
+    // Growth characteristics
+    baseGrowthRate: number;      // Growth per tick in optimal conditions
+    spreadProbability: number;   // Chance to spread to adjacent cell
+    droughtTolerance: number;    // How long survives without water (ticks)
+    frostTolerance: number;      // How low temp before death
+    // Seasonal behavior
+    gosDormantTemp: number;      // Temperature to enter dormancy
+    wakeFromDormantTemp: number; // Temperature to exit dormancy
+}
+
+export const GRASS_SPECIES: GrassSpecies[] = [
+    {
+        id: "cool_season",
+        name: "Cool Season Grass",
+        minGrowthTemp: 5,
+        optimalTempMin: 15,
+        optimalTempMax: 24,
+        maxGrowthTemp: 30,
+        minMoisture: 0.2,
+        optimalMoistureMin: 0.4,
+        optimalMoistureMax: 0.7,
+        maxMoisture: 0.9,
+        baseGrowthRate: 0.02,
+        spreadProbability: 0.05,
+        droughtTolerance: 48,  // 2 days
+        frostTolerance: -10,
+        gosDormantTemp: 30,    // Goes dormant in heat
+        wakeFromDormantTemp: 25,
+    },
+    {
+        id: "warm_season",
+        name: "Warm Season Grass",
+        minGrowthTemp: 15,
+        optimalTempMin: 25,
+        optimalTempMax: 35,
+        maxGrowthTemp: 40,
+        minMoisture: 0.15,
+        optimalMoistureMin: 0.3,
+        optimalMoistureMax: 0.6,
+        maxMoisture: 0.85,
+        baseGrowthRate: 0.025,
+        spreadProbability: 0.04,
+        droughtTolerance: 72,  // 3 days
+        frostTolerance: 0,
+        gosDormantTemp: 10,    // Goes dormant in cold
+        wakeFromDormantTemp: 15,
+    },
+    {
+        id: "drought_resistant",
+        name: "Drought Resistant Grass",
+        minGrowthTemp: 10,
+        optimalTempMin: 20,
+        optimalTempMax: 35,
+        maxGrowthTemp: 45,
+        minMoisture: 0.05,
+        optimalMoistureMin: 0.15,
+        optimalMoistureMax: 0.4,
+        maxMoisture: 0.7,
+        baseGrowthRate: 0.01,
+        spreadProbability: 0.02,
+        droughtTolerance: 168,  // 7 days
+        frostTolerance: -5,
+        gosDormantTemp: 5,
+        wakeFromDormantTemp: 12,
+    },
+];
+
+export const GRASS_CONFIG = {
+    // General settings
+    MIN_DENSITY_TO_SPREAD: 0.3,     // Minimum density before spreading
+    DEATH_RATE_NO_WATER: 0.05,      // Density loss per tick without water
+    DEATH_RATE_EXTREME_TEMP: 0.03,  // Density loss per tick in extreme temps
+    DORMANCY_DECAY_RATE: 0.001,     // Slow decay while dormant
+    INITIAL_SPREAD_DENSITY: 0.1,    // Starting density when grass spreads
+    MAX_GRASS_DENSITY: 1.0,
+    // Seeding (initial grass placement)
+    INITIAL_SEED_PROBABILITY: 0.3,  // Chance for cell to start with grass
+    SEED_MOISTURE_THRESHOLD: 0.2,   // Minimum moisture for initial seeding
+};
+
 // Atmospheric Humidity System Configuration
 export const EVAPORATION_CONFIG = {
     BASE_EVAP_RATE: 0.02,              // m/tick from water bodies

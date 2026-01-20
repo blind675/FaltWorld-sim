@@ -537,7 +537,14 @@ The weather system creates a closed-loop atmospheric cycle where temperature and
 - Growth rate based on moisture, temperature, sunlight
 - Spreads to adjacent cells probabilistically
 - Dies in drought or extreme cold
-- Data: `grassDensity: number` (0-1)
+- Seasonal dormancy in extreme heat/cold
+- Data: `grass_density: number` (0-1), `grass_type: string | null`, `grass_health: number`, `grass_dormant: 0 | 1`
+
+**Grass Species Configuration:**
+- Data-driven species definitions in `server/config.ts`
+- Temperature/moisture tolerance ranges (min/optimal/max)
+- Growth and spread rates per species
+- Seasonal dormancy thresholds per species
 
 **Flowers:**
 - Similar to grass but requires higher moisture
@@ -995,13 +1002,13 @@ Metrics tracked:
 - [ ] Snow accumulation display
 
 ### Phase 3: Ecology Foundation (6-12 months out)
-- [ ] Grass growth and spreading
+- [x] Grass growth and spreading
 - [ ] Flower systems
 - [ ] Tree lifecycle (sapling → mature → old)
 - [ ] Fruit/nut/seed production
 - [ ] Mushroom growth
 - [ ] Plant visualization layers
-- [ ] Ecology configuration system
+- [x] Ecology configuration system
 
 ### Phase 4: Animals & Birds (12-18 months out)
 - [ ] Vision and perception systems

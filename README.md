@@ -25,6 +25,7 @@ All simulation systems are located in `server/systems/`:
 - **`WindTransportSystem.ts`** - Wind-driven humidity and heat transport
 - **`CloudSystem.ts`** - Cloud formation and advection
 - **`PrecipitationSystem.ts`** - Rainfall and ground wetness effects
+- **`GrassSystem.ts`** - Grass growth, dormancy, and spreading
 - **`GridHelper.ts`** - Shared utilities for grid operations with world wrapping
 
 Each system implements the `ISimulationSystem` interface with a single `update(terrain, gameTime)` method.
@@ -77,6 +78,10 @@ Each system implements the `ISimulationSystem` interface with a single `update(t
   - Rainfall from dense clouds
   - Ground wetness tracking and moisture absorption
   - Cooling effects during precipitation
+- **Grass System**:
+  - Data-driven species definitions with temperature/moisture ranges
+  - Seasonal dormancy, growth, and health tracking
+  - Probabilistic spreading to neighboring cells
 - **Viewport System**:
   - Logarithmic zoom slider (20x20 to 100x100 cells visible)
   - Click-drag panning with world wrapping support
