@@ -31,7 +31,10 @@ server/
 │   ├── HumiditySystem.ts          # Air humidity diffusion (117 lines)
 │   ├── CondensationSystem.ts     # Air → ground moisture (62 lines)
 │   ├── TemperatureSystem.ts      # Temperature calculations (67 lines)
-│   ├── WeatherSystem.ts          # Pressure & wind generation (113 lines) ✅ NEW
+│   ├── WeatherSystem.ts          # Pressure & wind generation (113 lines)
+│   ├── WindTransportSystem.ts    # Wind-driven humidity/heat transport
+│   ├── CloudSystem.ts            # Cloud formation and advection
+│   ├── PrecipitationSystem.ts    # Rainfall and ground wetness
 │   └── SimulationEngine.ts        # Orchestrates all systems (68 lines)
 └── storage.ts                      # Simplified to 163 lines (was 847)
 ```
@@ -79,15 +82,32 @@ server/
 - Wind speed with configurable maximum
 - Wind smoothing for stability
 
+#### **WindTransportSystem** (`server/systems/WindTransportSystem.ts`)
+- Wind-based humidity transport
+- Minor heat advection between cells
+
+#### **CloudSystem** (`server/systems/CloudSystem.ts`)
+- Cloud formation from excess humidity
+- Altitude-adjusted saturation thresholds
+- Cloud advection with wind
+
+#### **PrecipitationSystem** (`server/systems/PrecipitationSystem.ts`)
+- Rain generation from dense clouds
+- Ground wetness tracking and drying
+- Moisture absorption and cooling effects
+
 #### **SimulationEngine** (`server/systems/SimulationEngine.ts`)
 Orchestrates system execution in correct order:
 1. Temperature (affects saturation capacity)
 2. Weather (pressure and wind from temperature/humidity)
-3. Hydrology (river flow, erosion)
-4. Humidity (adjust for temp changes, diffuse)
-5. Evaporation (water → air)
-6. Condensation (air → ground)
-7. Moisture (ground propagation)
+3. Wind transport (humidity and heat advection)
+4. Clouds (formation and advection)
+5. Precipitation (rain and wetness)
+6. Hydrology (river flow, erosion)
+7. Evaporation (water → air)
+8. Humidity (adjust for temp changes, diffuse)
+9. Condensation (air → ground)
+10. Moisture (ground propagation)
 
 #### **GridHelper** (`server/systems/GridHelper.ts`)
 - Shared utility for neighbor calculations
@@ -175,11 +195,12 @@ npm run dev
 - `server/config.ts` - Weather configuration (WEATHER_CONFIG)
 - Wind visualization with directional arrows
 - Cell info panel shows wind speed/direction
+- `server/systems/WindTransportSystem.ts` - Wind-driven humidity/heat transport
+- `server/systems/CloudSystem.ts` - Cloud formation and advection
+- `server/systems/PrecipitationSystem.ts` - Rainfall and ground wetness
 
 **Remaining:**
-- Wind-based humidity/heat transport
-- Cloud formation and dynamics
-- Precipitation system (rain/snow)
+- Closed-loop integration testing
 
 ### Phase 3: Ecology System (Agent 3)
 **Files to create:**

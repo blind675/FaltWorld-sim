@@ -3,6 +3,9 @@ import { type GameTime } from "../storage";
 import { type ISimulationSystem } from "./ISimulationSystem";
 import { TemperatureSystem } from "./TemperatureSystem";
 import { WeatherSystem } from "./WeatherSystem";
+import { WindTransportSystem } from "./WindTransportSystem";
+import { CloudSystem } from "./CloudSystem";
+import { PrecipitationSystem } from "./PrecipitationSystem";
 import { HydrologySystem } from "./HydrologySystem";
 import { EvaporationSystem } from "./EvaporationSystem";
 import { HumiditySystem } from "./HumiditySystem";
@@ -16,15 +19,21 @@ import { PERFORMANCE_CONFIG } from "../config";
  * System execution order is critical:
  * 1. Temperature - affects saturation capacity
  * 2. Weather - pressure and wind generation
- * 3. Hydrology - river flow and erosion
- * 4. Humidity - adjusts for temperature changes and diffuses
- * 5. Evaporation - water bodies → air humidity
- * 6. Condensation - oversaturated air → ground moisture
- * 7. Moisture - ground moisture propagation from water sources
+ * 3. Wind transport - humidity and heat advection
+ * 4. Clouds - formation and advection
+ * 5. Precipitation - rain and ground wetness
+ * 6. Hydrology - river flow and erosion
+ * 7. Evaporation - water bodies → air humidity
+ * 8. Humidity - adjusts for temperature changes and diffuses
+ * 9. Condensation - oversaturated air → ground moisture
+ * 10. Moisture - ground moisture propagation from water sources
  */
 export class SimulationEngine {
     private temperatureSystem: TemperatureSystem;
     private weatherSystem: WeatherSystem;
+    private windTransportSystem: WindTransportSystem;
+    private cloudSystem: CloudSystem;
+    private precipitationSystem: PrecipitationSystem;
     private hydrologySystem: HydrologySystem;
     private evaporationSystem: EvaporationSystem;
     private humiditySystem: HumiditySystem;
@@ -34,6 +43,9 @@ export class SimulationEngine {
     constructor() {
         this.temperatureSystem = new TemperatureSystem();
         this.weatherSystem = new WeatherSystem();
+        this.windTransportSystem = new WindTransportSystem();
+        this.cloudSystem = new CloudSystem();
+        this.precipitationSystem = new PrecipitationSystem();
         this.hydrologySystem = new HydrologySystem();
         this.evaporationSystem = new EvaporationSystem();
         this.humiditySystem = new HumiditySystem();
@@ -65,27 +77,42 @@ export class SimulationEngine {
         this.weatherSystem.update(terrain, gameTime);
         if (shouldLog) console.timeEnd("Weather");
 
-        // 3. Process hydrology (river flow, erosion)
+        // 3. Wind-driven transport
+        if (shouldLog) console.time("WindTransport");
+        this.windTransportSystem.update(terrain, gameTime);
+        if (shouldLog) console.timeEnd("WindTransport");
+
+        // 4. Cloud formation and advection
+        if (shouldLog) console.time("Clouds");
+        this.cloudSystem.update(terrain, gameTime);
+        if (shouldLog) console.timeEnd("Clouds");
+
+        // 5. Precipitation and ground wetness
+        if (shouldLog) console.time("Precipitation");
+        this.precipitationSystem.update(terrain, gameTime);
+        if (shouldLog) console.timeEnd("Precipitation");
+
+        // 6. Process hydrology (river flow, erosion)
         if (shouldLog) console.time("Hydrology");
         this.hydrologySystem.update(terrain, gameTime);
         if (shouldLog) console.timeEnd("Hydrology");
 
-        // 4. Adjust humidity for temperature changes and diffuse
-        if (shouldLog) console.time("Humidity");
-        this.humiditySystem.update(terrain, gameTime);
-        if (shouldLog) console.timeEnd("Humidity");
-
-        // 5. Evaporation from water bodies and ground
+        // 7. Evaporation from water bodies and ground
         if (shouldLog) console.time("Evaporation");
         this.evaporationSystem.update(terrain, gameTime);
         if (shouldLog) console.timeEnd("Evaporation");
 
-        // 6. Condensation (oversaturation → ground moisture)
+        // 8. Adjust humidity for temperature changes and diffuse
+        if (shouldLog) console.time("Humidity");
+        this.humiditySystem.update(terrain, gameTime);
+        if (shouldLog) console.timeEnd("Humidity");
+
+        // 9. Condensation (oversaturation → ground moisture)
         if (shouldLog) console.time("Condensation");
         this.condensationSystem.update(terrain, gameTime);
         if (shouldLog) console.timeEnd("Condensation");
 
-        // 7. Ground moisture propagation
+        // 10. Ground moisture propagation
         if (shouldLog) console.time("Moisture");
         this.moistureSystem.update(terrain, gameTime);
         if (shouldLog) console.timeEnd("Moisture");

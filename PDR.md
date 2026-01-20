@@ -959,10 +959,18 @@ Returns: {
 **Milestone 2.2: Weather System** 🔄 PARTIAL
 - [x] Atmospheric pressure calculation
 - [x] Wind generation from pressure gradients
-- [ ] Wind-based humidity/heat transport
-- [ ] Cloud formation and dynamics
-- [ ] Precipitation system (rain/snow)
+- [x] Wind-based humidity/heat transport
+- [x] Cloud formation and dynamics
+- [x] Precipitation system (rain only)
 - [ ] Closed-loop integration testing
+
+**Future Work - Snow & Movement:**
+- Snow accumulation when temperature < freezing
+- Snow melting mechanics
+- Movement penalties for animals on:
+  - Wet ground (ground_wetness > threshold)
+  - Snowy terrain (future snow_depth property)
+  - Muddy areas (high moisture + wetness)
 
 **Milestone 2.3: Weather Visualization** 🔄 PARTIAL
 - [ ] Pressure map layer

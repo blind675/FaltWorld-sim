@@ -22,6 +22,9 @@ All simulation systems are located in `server/systems/`:
 - **`HumiditySystem.ts`** - Air humidity diffusion and saturation
 - **`CondensationSystem.ts`** - Air-to-ground moisture transfer
 - **`WeatherSystem.ts`** - Atmospheric pressure and wind generation
+- **`WindTransportSystem.ts`** - Wind-driven humidity and heat transport
+- **`CloudSystem.ts`** - Cloud formation and advection
+- **`PrecipitationSystem.ts`** - Rainfall and ground wetness effects
 - **`GridHelper.ts`** - Shared utilities for grid operations with world wrapping
 
 Each system implements the `ISimulationSystem` interface with a single `update(terrain, gameTime)` method.
@@ -64,6 +67,16 @@ Each system implements the `ISimulationSystem` interface with a single `update(t
   - Wind generation from pressure gradients (flows high → low pressure)
   - Wind speed and direction stored per cell
   - Configurable max wind speed and smoothing factors
+- **Wind Transport System**:
+  - Wind-based humidity advection
+  - Heat transport between cells
+- **Cloud System**:
+  - Cloud formation from excess humidity
+  - Cloud advection with wind and altitude-based saturation
+- **Precipitation System**:
+  - Rainfall from dense clouds
+  - Ground wetness tracking and moisture absorption
+  - Cooling effects during precipitation
 - **Viewport System**:
   - Logarithmic zoom slider (20x20 to 100x100 cells visible)
   - Click-drag panning with world wrapping support
@@ -80,9 +93,6 @@ Each system implements the `ISimulationSystem` interface with a single `update(t
 ### Next Steps (Phase 2 Remaining)
 
 **Weather System (remaining):**
-- Wind-based humidity and heat transport
-- Cloud formation and dynamics
-- Precipitation system (rain/snow)
 - Snow accumulation and melting
 
 **Weather Visualization (remaining):**
