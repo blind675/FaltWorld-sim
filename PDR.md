@@ -973,10 +973,10 @@ Returns: {
   - Muddy areas (high moisture + wetness)
 
 **Milestone 2.3: Weather Visualization** 🔄 PARTIAL
-- [ ] Pressure map layer
+- [x] Pressure map layer
 - [x] Wind vector rendering (directional arrows with intensity-based sizing)
-- [ ] Cloud overlay
-- [ ] Precipitation animation
+- [x] Cloud overlay
+- [x] Precipitation animation
 - [ ] Snow accumulation display
 
 ### Phase 3: Ecology Foundation (6-12 months out)
