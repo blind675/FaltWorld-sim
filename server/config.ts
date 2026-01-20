@@ -163,3 +163,7 @@ export const PRECIPITATION_CONFIG = {
     COOLING_FACTOR: 0.5,          // temperature drop per unit rain
     WETNESS_DRY_RATE: 0.02,       // ground wetness evaporation per tick
 };
+
+export const DEBUG_CONFIG = {
+    WEATHER_VERBOSE_LOGGING: false,
+};
