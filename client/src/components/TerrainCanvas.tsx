@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState } from "react";
-import { type TerrainGrid } from "@shared/schema";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { type TerrainCell, type TerrainGrid } from "@shared/schema";
 import { ViewportManager } from "@/lib/viewportManager";
 import { CanvasRenderer } from "./canvas/CanvasRenderer";
 import { MinimapRenderer } from "./canvas/MinimapRenderer";
 import { type CellInfo, type VisualizationSettings } from "./canvas/types";
 import { useCanvasInteraction } from "./hooks/useCanvasInteraction";
-import { useCanvasPan } from "./hooks/useCanvasPan";
 
 export type { VisualizationSettings } from "./canvas/types";
 
@@ -43,6 +42,8 @@ export function TerrainCanvas({
   const [worldSize, setWorldSize] = useState(
     terrain?.length ?? viewportManager?.getWorldSize() ?? 0,
   );
+  const [minimapData, setMinimapData] = useState<TerrainCell[][] | null>(null);
+  const minimapFetchedRef = useRef(false);
 
   if (!rendererRef.current) {
     rendererRef.current = new CanvasRenderer();
@@ -63,7 +64,7 @@ export function TerrainCanvas({
     contourInterval: 100,
     colorMode: "default",
     wireframe: false,
-    zoomLevel: 2.0,
+    zoomLevel: 100 / 45, // Show 45x45 cells initially
     panOffset: { x: 0, y: 0 },
   };
 
@@ -74,31 +75,6 @@ export function TerrainCanvas({
 
   const terrainGrid = terrain ?? renderTerrain;
 
-  const getViewportBounds = () => {
-    if (!worldSize) {
-      return null;
-    }
-
-    const zoomLevel = settings.zoomLevel || 1.0;
-    const panOffset = settings.panOffset || { x: 0, y: 0 };
-    const cellWidth = (width / worldSize) * zoomLevel;
-    const cellHeight = (height / worldSize) * zoomLevel;
-    const worldWidth = worldSize * cellWidth;
-    const worldHeight = worldSize * cellHeight;
-    const normalizedPanX = ((panOffset.x % worldWidth) + worldWidth) % worldWidth;
-    const normalizedPanY = ((panOffset.y % worldHeight) + worldHeight) % worldHeight;
-    const startX = Math.floor(-normalizedPanX / cellWidth);
-    const startY = Math.floor(-normalizedPanY / cellHeight);
-    const endX = Math.ceil((width - normalizedPanX) / cellWidth);
-    const endY = Math.ceil((height - normalizedPanY) / cellHeight);
-
-    return {
-      startX,
-      startY,
-      width: Math.max(1, endX - startX),
-      height: Math.max(1, endY - startY),
-    };
-  };
 
   useEffect(() => {
     if (terrain) {
@@ -107,96 +83,189 @@ export function TerrainCanvas({
     }
   }, [terrain]);
 
+  // Fetch fixed 100x100 viewport on mount and refresh
   useEffect(() => {
     if (!viewportManager || terrain) {
       return;
     }
 
-    const bounds = getViewportBounds();
-    if (!bounds) {
-      return;
-    }
-
-    let isActive = true;
     setIsLoading(true);
 
     viewportManager
-      .getViewportData(bounds.startX, bounds.startY, bounds.width, bounds.height)
+      .getViewportData()
       .then((viewport) => {
-        if (!isActive) {
-          return;
-        }
         const nextWorldSize = viewportManager.getWorldSize();
         setWorldSize(nextWorldSize);
         setRenderTerrain(viewport);
       })
-      .catch((error) => {
+      .catch((error: Error) => {
         console.error("Failed to load viewport data", error);
       })
       .finally(() => {
-        if (isActive) {
-          setIsLoading(false);
-        }
+        setIsLoading(false);
       });
+  }, [viewportManager, terrain, refreshToken]);
 
-    return () => {
-      isActive = false;
-    };
-  }, [
-    viewportManager,
-    terrain,
-    width,
-    height,
-    settings.zoomLevel,
-    settings.panOffset,
-    refreshToken,
-  ]);
-
+  // Fetch minimap data separately at a lower interval
   useEffect(() => {
-    if (!viewportManager || terrain) {
+    if (terrain) {
+      // If full terrain is provided, use it for minimap
+      setMinimapData(terrain);
       return;
     }
 
-    const bounds = getViewportBounds();
-    if (!bounds) {
-      return;
+    const fetchMinimap = async () => {
+      try {
+        const response = await fetch("/api/minimap?resolution=150");
+        if (!response.ok) {
+          throw new Error("Failed to fetch minimap");
+        }
+        const data = await response.json();
+        if (data.minimap) {
+          setMinimapData(data.minimap);
+        }
+        if (data.worldSize) {
+          setWorldSize(data.worldSize);
+        }
+      } catch (error) {
+        console.error("Failed to fetch minimap data", error);
+      }
+    };
+
+    // Initial fetch
+    if (!minimapFetchedRef.current) {
+      minimapFetchedRef.current = true;
+      void fetchMinimap();
     }
 
-    const timer = window.setTimeout(() => {
-      viewportManager.prefetchAdjacent(bounds.startX, bounds.startY);
-    }, 500);
+    // Refresh minimap every 5 minutes
+    const minimapInterval = window.setInterval(() => {
+      void fetchMinimap();
+    }, 5 * 60 * 1000);
 
-    return () => window.clearTimeout(timer);
-  }, [
-    viewportManager,
-    terrain,
-    width,
-    height,
-    settings.zoomLevel,
-    settings.panOffset,
-    worldSize,
-  ]);
+    return () => window.clearInterval(minimapInterval);
+  }, [terrain, refreshToken]);
 
-  const {
-    hoveredCell,
-    selectedCell,
-    mousePosition,
-    handleMouseMove,
-    handleMouseLeave,
-    handleClick,
-  } = useCanvasInteraction({
-    canvasRef,
-    terrainGrid,
-    width,
-    height,
-    settings,
-    onCellSelect,
-  });
+  const { hoveredCell, selectedCell, mousePosition, handleMouseMove, handleMouseLeave, handleClick } =
+    useCanvasInteraction({
+      canvasRef,
+      terrainGrid,
+      width,
+      height,
+      settings,
+      onCellSelect,
+    });
 
-  const { handleMouseDown } = useCanvasPan({
-    settings,
-    onVisualizationSettingsChange,
-  });
+  // Move viewport and fetch new data
+  const moveViewport = useCallback((deltaX: number, deltaY: number) => {
+    if (!viewportManager) return;
+
+    const VIEWPORT_SIZE = 100;
+    const currentPos = viewportManager.getViewportPosition();
+
+    // Calculate new position with wrapping for circular world
+    let newViewportX = currentPos.x + deltaX;
+    let newViewportY = currentPos.y + deltaY;
+
+    // The valid range for viewport position is [0, worldSize - VIEWPORT_SIZE]
+    // because the viewport is VIEWPORT_SIZE cells wide/tall
+    const maxViewportPos = worldSize - VIEWPORT_SIZE;
+
+    // Wrap X coordinate (circular horizontally)
+    if (newViewportX < 0) {
+      // Moving left past 0, wrap to the right side
+      newViewportX = maxViewportPos + (newViewportX % maxViewportPos);
+      if (newViewportX < 0) newViewportX += maxViewportPos;
+    } else if (newViewportX > maxViewportPos) {
+      // Moving right past max, wrap to the left side
+      newViewportX = newViewportX % (maxViewportPos + 1);
+    }
+
+    // Wrap Y coordinate (circular vertically)
+    if (newViewportY < 0) {
+      // Moving up past 0, wrap to the bottom
+      newViewportY = maxViewportPos + (newViewportY % maxViewportPos);
+      if (newViewportY < 0) newViewportY += maxViewportPos;
+    } else if (newViewportY > maxViewportPos) {
+      // Moving down past max, wrap to the top
+      newViewportY = newViewportY % (maxViewportPos + 1);
+    }
+
+    // Update viewport position and fetch new data
+    viewportManager.setViewportPosition(newViewportX, newViewportY);
+    viewportManager.invalidateCache();
+
+    // Trigger re-fetch by updating state
+    setIsLoading(true);
+    viewportManager
+      .getViewportData()
+      .then((viewport) => {
+        const nextWorldSize = viewportManager.getWorldSize();
+        setWorldSize(nextWorldSize);
+        setRenderTerrain(viewport);
+      })
+      .catch((error: Error) => {
+        console.error("Failed to load viewport data", error);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  }, [viewportManager, worldSize]);
+
+  // Handle minimap click to move viewport
+  const handleMinimapClick = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!minimapRef.current || !viewportManager) return;
+
+    const rect = minimapRef.current.getBoundingClientRect();
+    const clickX = event.clientX - rect.left;
+    const clickY = event.clientY - rect.top;
+
+    const MINIMAP_SIZE = 150;
+    const VIEWPORT_SIZE = 100;
+
+    // Convert minimap click to world coordinates
+    const worldX = Math.floor((clickX / MINIMAP_SIZE) * worldSize);
+    const worldY = Math.floor((clickY / MINIMAP_SIZE) * worldSize);
+
+    // Center the viewport on the clicked position
+    const currentPos = viewportManager.getViewportPosition();
+    const deltaX = worldX - VIEWPORT_SIZE / 2 - currentPos.x;
+    const deltaY = worldY - VIEWPORT_SIZE / 2 - currentPos.y;
+
+    moveViewport(deltaX, deltaY);
+  }, [viewportManager, worldSize, moveViewport]);
+
+  // Handle keyboard arrow keys for navigation
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Only handle arrow keys
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+        return;
+      }
+
+      // Prevent default scrolling behavior
+      event.preventDefault();
+
+      const step = 10;
+      switch (event.key) {
+        case 'ArrowUp':
+          moveViewport(0, -step);
+          break;
+        case 'ArrowDown':
+          moveViewport(0, step);
+          break;
+        case 'ArrowLeft':
+          moveViewport(-step, 0);
+          break;
+        case 'ArrowRight':
+          moveViewport(step, 0);
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [moveViewport]);
 
   useEffect(() => {
     if (!canvasRef.current || !terrainGrid.length) return;
@@ -215,6 +284,7 @@ export function TerrainCanvas({
       height,
       selectedCell,
       hoveredCell,
+      worldSize,
     );
 
     ctx.restore();
@@ -225,10 +295,11 @@ export function TerrainCanvas({
     hoveredCell,
     selectedCell,
     settings,
+    worldSize,
   ]);
 
   useEffect(() => {
-    if (!minimapRef.current || !terrainGrid.length) return;
+    if (!minimapRef.current || !minimapData?.length) return;
 
     const ctx = minimapRef.current.getContext("2d");
     if (!ctx) return;
@@ -236,15 +307,19 @@ export function TerrainCanvas({
     const renderer = rendererRef.current;
     if (!renderer) return;
 
+    const viewportPos = viewportManager?.getViewportPosition() ?? { x: 0, y: 0 };
+
     minimapRendererRef.current?.render(
       ctx,
-      terrainGrid,
+      minimapData,
       settings,
       width,
       height,
       renderer.getCellColor.bind(renderer),
+      worldSize,
+      viewportPos,
     );
-  }, [terrainGrid, width, height, settings]);
+  }, [minimapData, width, height, settings, worldSize, viewportManager]);
 
   return (
     <div className="relative">
@@ -256,7 +331,6 @@ export function TerrainCanvas({
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
-        onMouseDown={handleMouseDown}
         onContextMenu={(event) => event.preventDefault()}
       />
 
@@ -266,12 +340,55 @@ export function TerrainCanvas({
         </div>
       )}
 
+      {/* Navigation arrows */}
+      <div className="absolute top-4 left-4 flex flex-col gap-1">
+        <button
+          onClick={() => moveViewport(0, -10)}
+          className="bg-black/70 hover:bg-black/90 text-white p-2 rounded border border-gold/50 hover:border-gold transition-colors"
+          title="Move Up"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="18 15 12 9 6 15"></polyline>
+          </svg>
+        </button>
+        <div className="flex gap-1">
+          <button
+            onClick={() => moveViewport(-10, 0)}
+            className="bg-black/70 hover:bg-black/90 text-white p-2 rounded border border-gold/50 hover:border-gold transition-colors"
+            title="Move Left"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </button>
+          <button
+            onClick={() => moveViewport(0, 10)}
+            className="bg-black/70 hover:bg-black/90 text-white p-2 rounded border border-gold/50 hover:border-gold transition-colors"
+            title="Move Down"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <button
+            onClick={() => moveViewport(10, 0)}
+            className="bg-black/70 hover:bg-black/90 text-white p-2 rounded border border-gold/50 hover:border-gold transition-colors"
+            title="Move Right"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </button>
+        </div>
+      </div>
+
       <div className="absolute bottom-4 right-4 border-2 border-gold rounded-lg shadow-lg bg-black/50 backdrop-blur-sm">
         <canvas
           ref={minimapRef}
           width={150}
           height={150}
-          className="rounded-lg"
+          className="rounded-lg cursor-pointer"
+          onClick={handleMinimapClick}
         />
       </div>
 

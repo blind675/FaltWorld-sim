@@ -250,7 +250,8 @@ export class MemStorage implements IStorage {
     // Initialize rivers in the hydrology system
     this.simulationEngine.getHydrologySystem().initializeRivers(this.terrain);
 
-    this.seedInitialGrass(this.terrain);
+    // Note: Grass seeding is delayed until tick 100 in SimulationEngine
+    // to allow moisture to establish first
 
     return this.terrain;
   }

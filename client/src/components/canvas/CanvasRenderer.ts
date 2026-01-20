@@ -1,6 +1,7 @@
 import { type TerrainCell, type TerrainGrid } from "@shared/schema";
 import { type CellInfo, type VisualizationSettings } from "./types";
 import {
+  CloudColorLayer,
   CloudLayer,
   ContourLayer,
   GrassLayer,
@@ -36,6 +37,7 @@ export class CanvasRenderer {
     this.registerColorModeLayer("wind", new WindLayer());
     this.registerColorModeLayer("grass", new GrassLayer());
     this.registerColorModeLayer("pressure", new PressureLayer());
+    this.registerColorModeLayer("cloud", new CloudColorLayer());
 
     this.registerOverlayLayer(new RiverLayer());
     this.registerOverlayLayer(new ContourLayer());
@@ -65,8 +67,9 @@ export class CanvasRenderer {
     height: number,
     selectedCell: CellInfo | null,
     hoveredCell: CellInfo | null,
+    worldSize?: number,
   ) {
-    const context = this.buildContext(ctx, terrainGrid, settings, width, height);
+    const context = this.buildContext(ctx, terrainGrid, settings, width, height, worldSize);
 
     const colorLayer =
       this.colorModeLayers.get(settings.colorMode) || this.defaultLayer;
@@ -104,20 +107,17 @@ export class CanvasRenderer {
     settings: VisualizationSettings,
     width: number,
     height: number,
+    worldSize?: number,
   ): LayerRenderContext {
-    const gridSize = terrainGrid.length;
+    // Fixed 100x100 viewport, no panning
+    const viewportSize = terrainGrid.length;
     const zoomLevel = settings.zoomLevel || 1.0;
-    const panOffset = settings.panOffset || { x: 0, y: 0 };
-    const cellWidth = (width / gridSize) * zoomLevel;
-    const cellHeight = (height / gridSize) * zoomLevel;
-    const worldWidth = gridSize * cellWidth;
-    const worldHeight = gridSize * cellHeight;
-    const normalizedPanX = ((panOffset.x % worldWidth) + worldWidth) % worldWidth;
-    const normalizedPanY = ((panOffset.y % worldHeight) + worldHeight) % worldHeight;
-    const startX = Math.floor(-normalizedPanX / cellWidth);
-    const startY = Math.floor(-normalizedPanY / cellHeight);
-    const endX = Math.ceil((width - normalizedPanX) / cellWidth);
-    const endY = Math.ceil((height - normalizedPanY) / cellHeight);
+
+    // Calculate cell size based on zoom
+    // At zoom=1, show all 100 cells. At zoom=2.22 (100/45), show 45 cells
+    const visibleCells = viewportSize / zoomLevel;
+    const cellWidth = width / visibleCells;
+    const cellHeight = height / visibleCells;
 
     return {
       ctx,
@@ -125,13 +125,14 @@ export class CanvasRenderer {
       settings,
       cellWidth,
       cellHeight,
-      startX,
-      startY,
-      endX,
-      endY,
-      normalizedPanX,
-      normalizedPanY,
-      gridSize,
+      startX: 0,
+      startY: 0,
+      endX: viewportSize,
+      endY: viewportSize,
+      normalizedPanX: 0,
+      normalizedPanY: 0,
+      gridSize: worldSize ?? viewportSize,
+      viewportSize,
     };
   }
 
@@ -147,18 +148,23 @@ export class CanvasRenderer {
       endY,
       normalizedPanX,
       normalizedPanY,
-      gridSize,
       settings,
     } = context;
 
     const shouldRenderDetails = cellWidth >= 0.5 && cellHeight >= 0.5;
 
-    for (let y = startY; y < endY; y++) {
-      for (let x = startX; x < endX; x++) {
-        const wrappedX = ((x % gridSize) + gridSize) % gridSize;
-        const wrappedY = ((y % gridSize) + gridSize) % gridSize;
-        const cell = terrainGrid[wrappedY]?.[wrappedX];
+    // Render viewport data which is already extracted for the visible region
+    const viewportHeight = terrainGrid.length;
+    const viewportWidth = terrainGrid[0]?.length || 0;
+
+    for (let viewportY = 0; viewportY < viewportHeight; viewportY++) {
+      for (let viewportX = 0; viewportX < viewportWidth; viewportX++) {
+        const cell = terrainGrid[viewportY]?.[viewportX];
         if (!cell) continue;
+
+        // Map viewport index back to world coordinate for screen positioning
+        const worldX = startX + viewportX;
+        const worldY = startY + viewportY;
 
         const color = layer.getCellColor
           ? layer.getCellColor(cell, settings)
@@ -170,8 +176,8 @@ export class CanvasRenderer {
         }
 
         ctx.fillRect(
-          x * cellWidth + normalizedPanX,
-          y * cellHeight + normalizedPanY,
+          worldX * cellWidth + normalizedPanX,
+          worldY * cellHeight + normalizedPanY,
           Math.ceil(cellWidth + 1),
           Math.ceil(cellHeight + 1),
         );
@@ -180,8 +186,8 @@ export class CanvasRenderer {
           ctx.strokeStyle = "rgba(0,0,0,0.2)";
           ctx.lineWidth = 0.5;
           ctx.strokeRect(
-            x * cellWidth + normalizedPanX,
-            y * cellHeight + normalizedPanY,
+            worldX * cellWidth + normalizedPanX,
+            worldY * cellHeight + normalizedPanY,
             cellWidth,
             cellHeight,
           );

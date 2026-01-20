@@ -46,6 +46,9 @@ export class SimulationEngine {
     private weatherMetrics: WeatherMetrics;
     private ticksSinceLastMetrics = 0;
     private METRICS_INTERVAL = 12;
+    private tickCount = 0;
+    private grassInitialized = false;
+    private GRASS_INIT_TICK = 100;
 
     constructor() {
         this.temperatureSystem = new TemperatureSystem();
@@ -130,10 +133,18 @@ export class SimulationEngine {
         this.moistureSystem.update(terrain, gameTime);
         if (shouldLog) console.timeEnd("Moisture");
 
-        // 11. Grass growth and spreading
-        if (shouldLog) console.time("Grass");
-        this.grassSystem.update(terrain, gameTime);
-        if (shouldLog) console.timeEnd("Grass");
+        // 11. Grass growth and spreading (delayed until moisture is established)
+        this.tickCount++;
+        if (this.tickCount >= this.GRASS_INIT_TICK) {
+            if (!this.grassInitialized) {
+                console.log(`GrassSystem: Initializing grass at tick ${this.tickCount}`);
+                this.grassSystem.seedInitialGrass(terrain);
+                this.grassInitialized = true;
+            }
+            if (shouldLog) console.time("Grass");
+            this.grassSystem.update(terrain, gameTime);
+            if (shouldLog) console.timeEnd("Grass");
+        }
         this.ticksSinceLastMetrics += 1;
         if (this.ticksSinceLastMetrics >= this.METRICS_INTERVAL) {
             const snapshot = this.weatherMetrics.captureSnapshot(terrain);

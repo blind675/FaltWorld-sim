@@ -219,7 +219,7 @@ export class WorldGenerator {
                     x,
                     y,
                     gridSize,
-                    gridSize * gridSize / 100000
+                    gridSize * gridSize / 1000000
                 );
                 const mappedHeight = this.mapHeight(noiseVal);
 
@@ -242,6 +242,9 @@ export class WorldGenerator {
                     grass_type: null,
                     grass_health: 0,
                     grass_dormant: 0,
+                    atmospheric_pressure: null,
+                    wind_speed: null,
+                    wind_direction: null,
                     type: "rock",
                     distance_from_water: Infinity,
                     river_name: null,

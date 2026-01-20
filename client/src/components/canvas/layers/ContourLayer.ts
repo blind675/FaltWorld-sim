@@ -34,12 +34,16 @@ export class ContourLayer implements ICanvasLayer {
       return;
     }
 
-    for (let y = startY; y < endY; y++) {
-      for (let x = startX; x < endX; x++) {
-        const wrappedX = ((x % gridSize) + gridSize) % gridSize;
-        const wrappedY = ((y % gridSize) + gridSize) % gridSize;
-        const cell = terrainGrid[wrappedY]?.[wrappedX];
+    const viewportHeight = terrainGrid.length;
+    const viewportWidth = terrainGrid[0]?.length || 0;
+
+    for (let viewportY = 0; viewportY < viewportHeight; viewportY++) {
+      for (let viewportX = 0; viewportX < viewportWidth; viewportX++) {
+        const cell = terrainGrid[viewportY]?.[viewportX];
         if (!cell) continue;
+
+        const worldX = startX + viewportX;
+        const worldY = startY + viewportY;
 
         const altitude = cell.altitude;
         const interval = context.settings.contourInterval;
@@ -50,8 +54,8 @@ export class ContourLayer implements ICanvasLayer {
           ctx.strokeStyle = "rgba(0,0,0,0.5)";
           ctx.lineWidth = 0.5;
           ctx.strokeRect(
-            x * cellWidth + normalizedPanX,
-            y * cellHeight + normalizedPanY,
+            worldX * cellWidth + normalizedPanX,
+            worldY * cellHeight + normalizedPanY,
             cellWidth,
             cellHeight,
           );

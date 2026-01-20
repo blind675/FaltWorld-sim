@@ -1,3 +1,4 @@
+export { CloudColorLayer } from "./CloudColorLayer";
 export { CloudLayer } from "./CloudLayer";
 export { ContourLayer } from "./ContourLayer";
 export { GrassLayer } from "./GrassLayer";

@@ -36,10 +36,15 @@ export class SelectionLayer implements ICanvasLayer {
       gridSize,
     } = context;
 
-    for (let y = startY; y < endY; y++) {
-      for (let x = startX; x < endX; x++) {
-        const wrappedX = ((x % gridSize) + gridSize) % gridSize;
-        const wrappedY = ((y % gridSize) + gridSize) % gridSize;
+    const viewportHeight = context.terrainGrid.length;
+    const viewportWidth = context.terrainGrid[0]?.length || 0;
+
+    for (let viewportY = 0; viewportY < viewportHeight; viewportY++) {
+      for (let viewportX = 0; viewportX < viewportWidth; viewportX++) {
+        const worldX = startX + viewportX;
+        const worldY = startY + viewportY;
+        const wrappedX = ((worldX % gridSize) + gridSize) % gridSize;
+        const wrappedY = ((worldY % gridSize) + gridSize) % gridSize;
 
         if (
           this.selectedCell &&
@@ -49,8 +54,8 @@ export class SelectionLayer implements ICanvasLayer {
           ctx.strokeStyle = "gold";
           ctx.lineWidth = 3;
           ctx.strokeRect(
-            x * cellWidth + normalizedPanX,
-            y * cellHeight + normalizedPanY,
+            worldX * cellWidth + normalizedPanX,
+            worldY * cellHeight + normalizedPanY,
             cellWidth,
             cellHeight,
           );
@@ -64,8 +69,8 @@ export class SelectionLayer implements ICanvasLayer {
           ctx.strokeStyle = "white";
           ctx.lineWidth = 2;
           ctx.strokeRect(
-            x * cellWidth + normalizedPanX,
-            y * cellHeight + normalizedPanY,
+            worldX * cellWidth + normalizedPanX,
+            worldY * cellHeight + normalizedPanY,
             cellWidth,
             cellHeight,
           );

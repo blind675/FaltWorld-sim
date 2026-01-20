@@ -171,7 +171,7 @@ export class HydrologySystem implements ISimulationSystem {
 
         if (!lowestCell) return false;
 
-        const neighbors = GridHelper.getNeighbors(terrain, lowestCell.x, lowestCell.y);
+        const neighbors = GridHelper.getCardinalNeighbors(terrain, lowestCell.x, lowestCell.y);
 
         // Find the lowest neighbor that is not water/river/spring
         const nonWaterNeighbors = neighbors.filter(

@@ -23,13 +23,16 @@ export class CloudLayer implements ICanvasLayer {
       gridSize,
     } = context;
 
-    for (let y = startY; y < endY; y++) {
-      for (let x = startX; x < endX; x++) {
-        const wrappedX = ((x % gridSize) + gridSize) % gridSize;
-        const wrappedY = ((y % gridSize) + gridSize) % gridSize;
+    const viewportHeight = terrainGrid.length;
+    const viewportWidth = terrainGrid[0]?.length || 0;
 
-        const cell = terrainGrid[wrappedY]?.[wrappedX];
+    for (let viewportY = 0; viewportY < viewportHeight; viewportY++) {
+      for (let viewportX = 0; viewportX < viewportWidth; viewportX++) {
+        const cell = terrainGrid[viewportY]?.[viewportX];
         if (!cell) continue;
+
+        const worldX = startX + viewportX;
+        const worldY = startY + viewportY;
 
         const cloudDensity = cell.cloud_density ?? 0;
         if (cloudDensity < 0.1) continue;
@@ -37,8 +40,8 @@ export class CloudLayer implements ICanvasLayer {
         const alpha = Math.min(0.7, cloudDensity * 0.8);
         ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
         ctx.fillRect(
-          x * cellWidth + normalizedPanX,
-          y * cellHeight + normalizedPanY,
+          worldX * cellWidth + normalizedPanX,
+          worldY * cellHeight + normalizedPanY,
           Math.ceil(cellWidth + 1),
           Math.ceil(cellHeight + 1),
         );

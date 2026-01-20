@@ -44,21 +44,24 @@ export const useCanvasInteraction = ({
       const mouseX = event.clientX - rect.left;
       const mouseY = event.clientY - rect.top;
 
+      // Fixed 100x100 viewport with zoom only (no panning)
+      const viewportSize = terrainGrid.length;
       const zoomLevel = settings.zoomLevel || 1.0;
-      const panOffset = settings.panOffset || { x: 0, y: 0 };
-      const gridSize = terrainGrid.length;
-      const cellWidth = (width / gridSize) * zoomLevel;
-      const cellHeight = (height / gridSize) * zoomLevel;
-      const worldWidth = gridSize * cellWidth;
-      const worldHeight = gridSize * cellHeight;
-      const normalizedPanX = ((panOffset.x % worldWidth) + worldWidth) % worldWidth;
-      const normalizedPanY = ((panOffset.y % worldHeight) + worldHeight) % worldHeight;
-      const adjustedMouseX = mouseX - normalizedPanX;
-      const adjustedMouseY = mouseY - normalizedPanY;
-      const rawCellX = Math.floor(adjustedMouseX / cellWidth);
-      const rawCellY = Math.floor(adjustedMouseY / cellHeight);
-      const cellX = ((rawCellX % gridSize) + gridSize) % gridSize;
-      const cellY = ((rawCellY % gridSize) + gridSize) % gridSize;
+
+      // Calculate cell size based on zoom
+      const visibleCells = viewportSize / zoomLevel;
+      const cellWidth = width / visibleCells;
+      const cellHeight = height / visibleCells;
+
+      // Direct mapping - no panning offset
+      const cellX = Math.floor(mouseX / cellWidth);
+      const cellY = Math.floor(mouseY / cellHeight);
+
+      // Check bounds
+      if (cellX < 0 || cellX >= viewportSize || cellY < 0 || cellY >= viewportSize) {
+        return null;
+      }
+
       const cell = terrainGrid[cellY]?.[cellX];
       if (!cell) {
         return null;
@@ -72,7 +75,7 @@ export const useCanvasInteraction = ({
         screenY: mouseY,
       } as CellInfo;
     },
-    [canvasRef, terrainGrid, height, settings.panOffset, settings.zoomLevel, width],
+    [canvasRef, terrainGrid, settings.zoomLevel, width, height],
   );
 
   const handleMouseMove = useCallback(

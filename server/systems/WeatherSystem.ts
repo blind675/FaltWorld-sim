@@ -40,12 +40,17 @@ export class WeatherSystem implements ISimulationSystem {
         }
     }
 
+    /**
+     * Optimized separable box blur - O(n*radius) instead of O(n*radius²)
+     * Uses horizontal pass then vertical pass for same result as 2D box blur
+     */
     private smoothPressure(terrain: TerrainGrid): void {
         const { width, height } = GridHelper.getDimensions(terrain);
         const radius = WEATHER_CONFIG.PRESSURE_SMOOTHING_RADIUS;
         const passes = WEATHER_CONFIG.PRESSURE_SMOOTHING_PASSES;
+        const kernelSize = radius * 2 + 1;
 
-        // Initialize smoothed pressure array
+        // Initialize/reuse smoothed pressure array
         if (this.smoothedPressure.length !== height) {
             this.smoothedPressure = Array.from({ length: height }, () =>
                 new Array(width).fill(0)
@@ -59,35 +64,48 @@ export class WeatherSystem implements ISimulationSystem {
             }
         }
 
-        // Apply box blur passes
+        // Temp buffer for intermediate results
+        const temp = Array.from({ length: height }, () => new Array(width).fill(0));
+
+        // Apply separable box blur passes
         for (let pass = 0; pass < passes; pass++) {
-            const temp = Array.from({ length: height }, () =>
-                new Array(width).fill(0)
-            );
-
+            // Horizontal pass (blur each row)
             for (let y = 0; y < height; y++) {
-                for (let x = 0; x < width; x++) {
-                    let sum = 0;
-                    let count = 0;
+                // Initialize running sum for first window
+                let sum = 0;
+                for (let dx = -radius; dx <= radius; dx++) {
+                    const nx = ((dx % width) + width) % width;
+                    sum += this.smoothedPressure[y][nx];
+                }
+                temp[y][0] = sum / kernelSize;
 
-                    // Sample in a box around the cell (with world wrapping)
-                    for (let dy = -radius; dy <= radius; dy++) {
-                        for (let dx = -radius; dx <= radius; dx++) {
-                            const nx = ((x + dx) % width + width) % width;
-                            const ny = ((y + dy) % height + height) % height;
-                            sum += this.smoothedPressure[ny][nx];
-                            count++;
-                        }
-                    }
-
-                    temp[y][x] = sum / count;
+                // Slide window across row
+                for (let x = 1; x < width; x++) {
+                    const removeX = ((x - radius - 1) % width + width) % width;
+                    const addX = ((x + radius) % width + width) % width;
+                    sum -= this.smoothedPressure[y][removeX];
+                    sum += this.smoothedPressure[y][addX];
+                    temp[y][x] = sum / kernelSize;
                 }
             }
 
-            // Copy result back
-            for (let y = 0; y < height; y++) {
-                for (let x = 0; x < width; x++) {
-                    this.smoothedPressure[y][x] = temp[y][x];
+            // Vertical pass (blur each column)
+            for (let x = 0; x < width; x++) {
+                // Initialize running sum for first window
+                let sum = 0;
+                for (let dy = -radius; dy <= radius; dy++) {
+                    const ny = ((dy % height) + height) % height;
+                    sum += temp[ny][x];
+                }
+                this.smoothedPressure[0][x] = sum / kernelSize;
+
+                // Slide window down column
+                for (let y = 1; y < height; y++) {
+                    const removeY = ((y - radius - 1) % height + height) % height;
+                    const addY = ((y + radius) % height + height) % height;
+                    sum -= temp[removeY][x];
+                    sum += temp[addY][x];
+                    this.smoothedPressure[y][x] = sum / kernelSize;
                 }
             }
         }

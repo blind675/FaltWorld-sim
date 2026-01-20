@@ -153,6 +153,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       res.json({
         updateInterval: INTERVAL, // Backend update interval in milliseconds
+        worldSize: storage.getWorldSize(),
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch config" });

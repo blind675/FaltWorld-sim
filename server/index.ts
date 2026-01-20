@@ -8,7 +8,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // Set up periodic task
-export const INTERVAL = 1000 * 30; // 30 second in milliseconds (update interval)
+export const INTERVAL = 1000 * 60; // 60 second in milliseconds (update interval)
 let intervalId: NodeJS.Timeout;
 
 function startPeriodicTask() {

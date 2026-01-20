@@ -14,7 +14,7 @@ export interface WorldConfig {
 }
 
 export const DEFAULT_WORLD_CONFIG: WorldConfig = {
-    gridSize: 1000,
+    gridSize: 2000,
     noiseScale: 0.001, // Adjusted for larger world size
     numberOfSprings: 150,
     minHeight: -200,

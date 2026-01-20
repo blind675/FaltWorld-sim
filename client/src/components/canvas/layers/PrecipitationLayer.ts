@@ -26,19 +26,22 @@ export class PrecipitationLayer implements ICanvasLayer {
 
     this.animationOffset = (this.animationOffset + 2) % 20;
 
-    for (let y = startY; y < endY; y++) {
-      for (let x = startX; x < endX; x++) {
-        const wrappedX = ((x % gridSize) + gridSize) % gridSize;
-        const wrappedY = ((y % gridSize) + gridSize) % gridSize;
+    const viewportHeight = terrainGrid.length;
+    const viewportWidth = terrainGrid[0]?.length || 0;
 
-        const cell = terrainGrid[wrappedY]?.[wrappedX];
+    for (let viewportY = 0; viewportY < viewportHeight; viewportY++) {
+      for (let viewportX = 0; viewportX < viewportWidth; viewportX++) {
+        const cell = terrainGrid[viewportY]?.[viewportX];
         if (!cell) continue;
+
+        const worldX = startX + viewportX;
+        const worldY = startY + viewportY;
 
         const precipRate = cell.precipitation_rate ?? 0;
         if (precipRate < 0.05) continue;
 
-        const cellX = x * cellWidth + normalizedPanX;
-        const cellY = y * cellHeight + normalizedPanY;
+        const cellX = worldX * cellWidth + normalizedPanX;
+        const cellY = worldY * cellHeight + normalizedPanY;
 
         const intensity = Math.min(1, precipRate * 2);
         const numLines = Math.floor(intensity * 3) + 1;

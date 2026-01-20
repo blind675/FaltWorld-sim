@@ -34,13 +34,16 @@ export class WindLayer implements ICanvasLayer {
       return;
     }
 
-    for (let y = startY; y < endY; y++) {
-      for (let x = startX; x < endX; x++) {
-        const wrappedX = ((x % gridSize) + gridSize) % gridSize;
-        const wrappedY = ((y % gridSize) + gridSize) % gridSize;
+    const viewportHeight = terrainGrid.length;
+    const viewportWidth = terrainGrid[0]?.length || 0;
 
-        const cell = terrainGrid[wrappedY]?.[wrappedX];
+    for (let viewportY = 0; viewportY < viewportHeight; viewportY++) {
+      for (let viewportX = 0; viewportX < viewportWidth; viewportX++) {
+        const cell = terrainGrid[viewportY]?.[viewportX];
         if (!cell) continue;
+
+        const worldX = startX + viewportX;
+        const worldY = startY + viewportY;
 
         const windSpeed = cell.wind_speed ?? 0;
         const windDirection = cell.wind_direction ?? 0;
@@ -49,8 +52,8 @@ export class WindLayer implements ICanvasLayer {
           continue;
         }
 
-        const centerX = x * cellWidth + normalizedPanX + cellWidth / 2;
-        const centerY = y * cellHeight + normalizedPanY + cellHeight / 2;
+        const centerX = worldX * cellWidth + normalizedPanX + cellWidth / 2;
+        const centerY = worldY * cellHeight + normalizedPanY + cellHeight / 2;
         const maxWindSpeed = 15;
         const normalizedSpeed = Math.min(1, windSpeed / maxWindSpeed);
         const arrowLength =

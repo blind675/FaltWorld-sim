@@ -76,39 +76,48 @@ export class RiverLayer implements ICanvasLayer {
       ctx.stroke();
     };
 
-    for (let y = startY; y < endY; y++) {
-      for (let x = startX; x < endX; x++) {
-        const wrappedX = ((x % gridSize) + gridSize) % gridSize;
-        const wrappedY = ((y % gridSize) + gridSize) % gridSize;
-        const cell = terrainGrid[wrappedY]?.[wrappedX];
+    const viewportHeight = terrainGrid.length;
+    const viewportWidth = terrainGrid[0]?.length || 0;
+
+    for (let viewportY = 0; viewportY < viewportHeight; viewportY++) {
+      for (let viewportX = 0; viewportX < viewportWidth; viewportX++) {
+        const cell = terrainGrid[viewportY]?.[viewportX];
         if (!cell) continue;
+
+        const worldX = startX + viewportX;
+        const worldY = startY + viewportY;
 
         if (
           (cell.type === "river" || cell.type === "spring") &&
           cell.river_name
         ) {
-          const wrappedRightX = (wrappedX + 1) % gridSize;
-          const wrappedDownY = (wrappedY + 1) % gridSize;
+          // Check right neighbor
+          const rightViewportX = viewportX + 1;
+          if (rightViewportX < viewportWidth) {
+            drawRiverSegment(
+              cell,
+              worldX,
+              worldY,
+              rightViewportX,
+              viewportY,
+              (worldX + 1) * cellWidth + normalizedPanX,
+              worldY * cellHeight + normalizedPanY,
+            );
+          }
 
-          drawRiverSegment(
-            cell,
-            x,
-            y,
-            wrappedRightX,
-            wrappedY,
-            (x + 1) * cellWidth + normalizedPanX,
-            y * cellHeight + normalizedPanY,
-          );
-
-          drawRiverSegment(
-            cell,
-            x,
-            y,
-            wrappedX,
-            wrappedDownY,
-            x * cellWidth + normalizedPanX,
-            (y + 1) * cellHeight + normalizedPanY,
-          );
+          // Check down neighbor
+          const downViewportY = viewportY + 1;
+          if (downViewportY < viewportHeight) {
+            drawRiverSegment(
+              cell,
+              worldX,
+              worldY,
+              viewportX,
+              downViewportY,
+              worldX * cellWidth + normalizedPanX,
+              (worldY + 1) * cellHeight + normalizedPanY,
+            );
+          }
         }
       }
     }

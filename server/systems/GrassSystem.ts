@@ -34,7 +34,7 @@ export class GrassSystem implements ISimulationSystem {
             for (let x = 0; x < width; x++) {
                 const cell = terrain[y][x];
                 if (this.canSpread(cell)) {
-                    const neighbors = GridHelper.getNeighbors(terrain, x, y);
+                    const neighbors = GridHelper.getNeighborsWithOffset(terrain, x, y);
                     for (const neighbor of neighbors) {
                         if (this.canReceiveGrass(neighbor.cell, cell.grass_type!)) {
                             const species = this.speciesMap.get(cell.grass_type!);
@@ -169,6 +169,49 @@ export class GrassSystem implements ISimulationSystem {
             return false;
         }
         return true;
+    }
+
+    /**
+     * Seed initial grass across the terrain based on moisture and temperature
+     */
+    seedInitialGrass(terrain: TerrainGrid): void {
+        const { width, height } = GridHelper.getDimensions(terrain);
+
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const cell = terrain[y][x];
+
+                // Skip water and high mountains
+                if (cell.type === "river" || cell.type === "spring" || cell.water_height > 0.5) continue;
+                if ((cell.altitude ?? 0) > 1500) continue;
+
+                // Check if conditions are suitable
+                const moisture = cell.moisture ?? 0;
+                if (moisture < GRASS_CONFIG.SEED_MOISTURE_THRESHOLD) continue;
+
+                // Random seeding
+                if (Math.random() > GRASS_CONFIG.INITIAL_SEED_PROBABILITY) continue;
+
+                // Select species based on climate
+                const temp = cell.temperature ?? 15;
+                let selectedSpecies: string;
+
+                if (moisture < 0.25) {
+                    selectedSpecies = "drought_resistant";
+                } else if (temp > 25) {
+                    selectedSpecies = "warm_season";
+                } else {
+                    selectedSpecies = "cool_season";
+                }
+
+                cell.grass_density = 0.2 + Math.random() * 0.3;
+                cell.grass_type = selectedSpecies;
+                cell.grass_health = 0.7 + Math.random() * 0.3;
+                cell.grass_dormant = 0;
+            }
+        }
+
+        console.log("GrassSystem: Initial grass seeded");
     }
 
     private logSummary(terrain: TerrainGrid, width: number, height: number): void {

@@ -10,14 +10,15 @@ export interface VisualizationSettings {
   contourLines: boolean;
   contourInterval: number; // Interval for contour lines
   colorMode:
-    | "default"
-    | "heightmap"
-    | "moisture"
-    | "temperature"
-    | "humidity"
-    | "wind"
-    | "grass";
-    | "pressure";
+  | "default"
+  | "heightmap"
+  | "moisture"
+  | "temperature"
+  | "humidity"
+  | "wind"
+  | "grass"
+  | "pressure"
+  | "cloud";
   wireframe: boolean;
   zoomLevel: number; // 1.0 is normal, higher values zoom in
   panOffset: { x: number; y: number }; // Offset for panning

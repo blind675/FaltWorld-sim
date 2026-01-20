@@ -14,6 +14,8 @@ export interface LayerRenderContext {
   normalizedPanX: number;
   normalizedPanY: number;
   gridSize: number;
+  /** Size of the viewport data array (may differ from gridSize/worldSize) */
+  viewportSize: number;
 }
 
 export interface ICanvasLayer {

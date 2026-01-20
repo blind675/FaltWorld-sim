@@ -17,12 +17,16 @@ export class MinimapRenderer {
     width: number,
     height: number,
     getCellColor: (cell: TerrainCell, settings: VisualizationSettings) => string,
+    worldSize?: number,
+    viewportPosition?: { x: number; y: number },
   ) {
     const gridSize = terrainGrid.length;
     if (!gridSize) {
       return;
     }
 
+    // Use actual world size for viewport calculations, grid size for rendering
+    const actualWorldSize = worldSize ?? gridSize;
     const cellSize = MINIMAP_SIZE / gridSize;
     const now = Date.now();
     const colorModeChanged = this.lastColorMode !== settings.colorMode;
@@ -51,88 +55,32 @@ export class MinimapRenderer {
       ctx.putImageData(this.cache, 0, 0);
     }
 
+    // Calculate visible area based on zoom
+    // The viewport is 100x100 cells, but zoom affects how many are visible
+    const VIEWPORT_SIZE = 100;
     const zoomLevel = settings.zoomLevel || 1.0;
-    const panOffset = settings.panOffset || { x: 0, y: 0 };
-    const cellWidth = (width / gridSize) * zoomLevel;
-    const cellHeight = (height / gridSize) * zoomLevel;
-    const worldWidth = gridSize * cellWidth;
-    const worldHeight = gridSize * cellHeight;
-    const normalizedPanX = ((panOffset.x % worldWidth) + worldWidth) % worldWidth;
-    const normalizedPanY = ((panOffset.y % worldHeight) + worldHeight) % worldHeight;
-    const viewportStartX = (-normalizedPanX / cellWidth) % gridSize;
-    const viewportStartY = (-normalizedPanY / cellHeight) % gridSize;
-    const viewportWidth = width / cellWidth;
-    const viewportHeight = height / cellHeight;
-    const normalizedStartX = ((viewportStartX % gridSize) + gridSize) % gridSize;
-    const normalizedStartY = ((viewportStartY % gridSize) + gridSize) % gridSize;
+    const visibleCells = VIEWPORT_SIZE / zoomLevel;
 
     ctx.strokeStyle = "rgba(255, 215, 0, 0.9)";
     ctx.lineWidth = 2;
 
-    const wrapsX = normalizedStartX + viewportWidth > gridSize;
-    const wrapsY = normalizedStartY + viewportHeight > gridSize;
+    // Convert world coordinates to minimap coordinates
+    const pixelPerWorldCell = MINIMAP_SIZE / actualWorldSize;
 
-    if (!wrapsX && !wrapsY) {
-      ctx.strokeRect(
-        normalizedStartX * cellSize,
-        normalizedStartY * cellSize,
-        viewportWidth * cellSize,
-        viewportHeight * cellSize,
-      );
-    } else if (wrapsX && !wrapsY) {
-      const rightWidth = gridSize - normalizedStartX;
-      const leftWidth = viewportWidth - rightWidth;
-      ctx.strokeRect(
-        normalizedStartX * cellSize,
-        normalizedStartY * cellSize,
-        rightWidth * cellSize,
-        viewportHeight * cellSize,
-      );
-      ctx.strokeRect(
-        0,
-        normalizedStartY * cellSize,
-        leftWidth * cellSize,
-        viewportHeight * cellSize,
-      );
-    } else if (!wrapsX && wrapsY) {
-      const bottomHeight = gridSize - normalizedStartY;
-      const topHeight = viewportHeight - bottomHeight;
-      ctx.strokeRect(
-        normalizedStartX * cellSize,
-        normalizedStartY * cellSize,
-        viewportWidth * cellSize,
-        bottomHeight * cellSize,
-      );
-      ctx.strokeRect(
-        normalizedStartX * cellSize,
-        0,
-        viewportWidth * cellSize,
-        topHeight * cellSize,
-      );
-    } else {
-      const rightWidth = gridSize - normalizedStartX;
-      const leftWidth = viewportWidth - rightWidth;
-      const bottomHeight = gridSize - normalizedStartY;
-      const topHeight = viewportHeight - bottomHeight;
-      ctx.strokeRect(
-        normalizedStartX * cellSize,
-        normalizedStartY * cellSize,
-        rightWidth * cellSize,
-        bottomHeight * cellSize,
-      );
-      ctx.strokeRect(
-        0,
-        normalizedStartY * cellSize,
-        leftWidth * cellSize,
-        bottomHeight * cellSize,
-      );
-      ctx.strokeRect(
-        normalizedStartX * cellSize,
-        0,
-        rightWidth * cellSize,
-        topHeight * cellSize,
-      );
-      ctx.strokeRect(0, 0, leftWidth * cellSize, topHeight * cellSize);
-    }
+    // Get viewport position (defaults to 0,0 if not provided)
+    const viewportX = viewportPosition?.x ?? 0;
+    const viewportY = viewportPosition?.y ?? 0;
+
+    // Calculate center of viewport
+    const centerOffsetCells = (VIEWPORT_SIZE - visibleCells) / 2;
+
+    // Position on minimap shows the visible area within the viewport
+    const vpX = (viewportX + centerOffsetCells) * pixelPerWorldCell;
+    const vpY = (viewportY + centerOffsetCells) * pixelPerWorldCell;
+    const vpW = visibleCells * pixelPerWorldCell;
+    const vpH = visibleCells * pixelPerWorldCell;
+
+    // Draw the viewport indicator showing visible area
+    ctx.strokeRect(vpX, vpY, vpW, vpH);
   }
 }
