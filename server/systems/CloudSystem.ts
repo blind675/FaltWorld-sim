@@ -2,7 +2,7 @@ import { type TerrainGrid } from "@shared/schema";
 import { type GameTime } from "../storage";
 import { type ISimulationSystem } from "./ISimulationSystem";
 import { GridHelper } from "./GridHelper";
-import { CLOUD_CONFIG, DEFAULT_WORLD_CONFIG, WEATHER_CONFIG } from "../config";
+import { CLOUD_CONFIG, DEBUG_CONFIG, DEFAULT_WORLD_CONFIG, WEATHER_CONFIG } from "../config";
 
 const DEGREE_FULL_CIRCLE = 360;
 const DEG_TO_RAD = Math.PI / (DEGREE_FULL_CIRCLE / 2);
@@ -25,6 +25,7 @@ export class CloudSystem implements ISimulationSystem {
 
         let maxFormation = 0;
         let maxFormationCell: { x: number; y: number } | null = null;
+        let cloudFormed = 0;
 
         const altitudeRange = DEFAULT_WORLD_CONFIG.maxHeight - DEFAULT_WORLD_CONFIG.minHeight;
 
@@ -45,6 +46,7 @@ export class CloudSystem implements ISimulationSystem {
                     const formation = excessHumidity * CLOUD_CONFIG.CLOUD_FORMATION_RATE;
                     newClouds[y][x] = Math.min(1, newClouds[y][x] + formation);
                     cell.air_humidity = Math.max(0, cell.air_humidity - formation);
+                    cloudFormed += formation;
 
                     if (formation > maxFormation) {
                         maxFormation = formation;
@@ -61,6 +63,10 @@ export class CloudSystem implements ISimulationSystem {
             for (let x = 0; x < width; x++) {
                 terrain[y][x].cloud_density = Math.min(1, Math.max(0, newClouds[y][x]));
             }
+        }
+
+        if (DEBUG_CONFIG.WEATHER_VERBOSE_LOGGING && cloudFormed > 0) {
+            console.log(`CloudSystem: Formed ${cloudFormed.toFixed(2)} cloud density from humidity`);
         }
 
         if (maxFormationCell && maxFormation > 0.08 && gameTime.hour % 6 === 0) {

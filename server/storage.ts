@@ -1,7 +1,8 @@
 import { type TerrainCell, type TerrainGrid } from "@shared/schema";
 import { WorldGenerator } from "./worldGenerator";
-import { DEFAULT_WORLD_CONFIG, TIME_CONFIG, VIEWPORT_CONFIG } from "./config";
+import { DEFAULT_WORLD_CONFIG, GRASS_CONFIG, TIME_CONFIG, VIEWPORT_CONFIG } from "./config";
 import { SimulationEngine } from "./systems/SimulationEngine";
+import { GridHelper } from "./systems/GridHelper";
 
 // Month information with daylight hours and base temperatures (at equator, sea level)
 interface MonthInfo {
@@ -47,6 +48,7 @@ export interface IStorage {
   generateTerrain(): Promise<TerrainGrid>;
   landUpdate(): Promise<void>;
   getGameTime(): GameTime;
+  getSimulationEngine(): SimulationEngine;
 }
 
 export class MemStorage implements IStorage {
@@ -128,6 +130,10 @@ export class MemStorage implements IStorage {
     return this.terrain.length;
   }
 
+  getSimulationEngine(): SimulationEngine {
+    return this.simulationEngine;
+  }
+
 
   async landUpdate() {
     this.advanceTime();
@@ -176,6 +182,46 @@ export class MemStorage implements IStorage {
     return minimap;
   }
 
+  private seedInitialGrass(terrain: TerrainGrid): void {
+    const { width, height } = GridHelper.getDimensions(terrain);
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const cell = terrain[y][x];
+
+        // Skip water and high mountains
+        if (cell.type === "river" || cell.type === "spring" || cell.water_height > 0.5) continue;
+        if ((cell.altitude ?? 0) > 1500) continue;
+
+        // Check if conditions are suitable
+        const moisture = cell.moisture ?? 0;
+        if (moisture < GRASS_CONFIG.SEED_MOISTURE_THRESHOLD) continue;
+
+        // Random seeding
+        if (Math.random() > GRASS_CONFIG.INITIAL_SEED_PROBABILITY) continue;
+
+        // Select species based on climate
+        const temp = cell.temperature ?? 15;
+        let selectedSpecies: string;
+
+        if (moisture < 0.25) {
+          selectedSpecies = "drought_resistant";
+        } else if (temp > 25) {
+          selectedSpecies = "warm_season";
+        } else {
+          selectedSpecies = "cool_season";
+        }
+
+        cell.grass_density = 0.2 + Math.random() * 0.3;
+        cell.grass_type = selectedSpecies;
+        cell.grass_health = 0.7 + Math.random() * 0.3;
+        cell.grass_dormant = 0;
+      }
+    }
+
+    console.log("GrassSystem: Initial grass seeded");
+  }
+
   async generateTerrain(): Promise<TerrainGrid> {
     // Regenerate the world with new noise seed
     this.worldGenerator.regenerate();
@@ -203,6 +249,8 @@ export class MemStorage implements IStorage {
 
     // Initialize rivers in the hydrology system
     this.simulationEngine.getHydrologySystem().initializeRivers(this.terrain);
+
+    this.seedInitialGrass(this.terrain);
 
     return this.terrain;
   }

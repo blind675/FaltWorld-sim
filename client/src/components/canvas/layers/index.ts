@@ -1,8 +1,11 @@
+export { CloudLayer } from "./CloudLayer";
 export { ContourLayer } from "./ContourLayer";
 export { GrassLayer } from "./GrassLayer";
 export { HeightmapLayer } from "./HeightmapLayer";
 export { HumidityLayer } from "./HumidityLayer";
 export { MoistureLayer } from "./MoistureLayer";
+export { PrecipitationLayer } from "./PrecipitationLayer";
+export { PressureLayer } from "./PressureLayer";
 export { RiverLayer } from "./RiverLayer";
 export { SelectionLayer } from "./SelectionLayer";
 export { TemperatureLayer } from "./TemperatureLayer";

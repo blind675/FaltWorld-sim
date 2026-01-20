@@ -537,7 +537,14 @@ The weather system creates a closed-loop atmospheric cycle where temperature and
 - Growth rate based on moisture, temperature, sunlight
 - Spreads to adjacent cells probabilistically
 - Dies in drought or extreme cold
-- Data: `grassDensity: number` (0-1)
+- Seasonal dormancy in extreme heat/cold
+- Data: `grass_density: number` (0-1), `grass_type: string | null`, `grass_health: number`, `grass_dormant: 0 | 1`
+
+**Grass Species Configuration:**
+- Data-driven species definitions in `server/config.ts`
+- Temperature/moisture tolerance ranges (min/optimal/max)
+- Growth and spread rates per species
+- Seasonal dormancy thresholds per species
 
 **Flowers:**
 - Similar to grass but requires higher moisture
@@ -962,7 +969,22 @@ Returns: {
 - [x] Wind-based humidity/heat transport
 - [x] Cloud formation and dynamics
 - [x] Precipitation system (rain only)
-- [ ] Closed-loop integration testing
+- [x] Closed-loop integration testing
+
+### Weather Observability
+
+The `WeatherMetrics` module provides:
+- Per-tick snapshots of all weather variables
+- Trend analysis for feedback loop verification
+- Periodic summary logging
+- `/api/weather-stats` endpoint for debugging
+
+Metrics tracked:
+- Average temperature, humidity, pressure, wind speed
+- Cloud coverage percentage
+- Rain coverage percentage
+- Ground wetness coverage
+- Feedback loop health assessment
 
 **Future Work - Snow & Movement:**
 - Snow accumulation when temperature < freezing
@@ -973,20 +995,20 @@ Returns: {
   - Muddy areas (high moisture + wetness)
 
 **Milestone 2.3: Weather Visualization** 🔄 PARTIAL
-- [ ] Pressure map layer
+- [x] Pressure map layer
 - [x] Wind vector rendering (directional arrows with intensity-based sizing)
-- [ ] Cloud overlay
-- [ ] Precipitation animation
+- [x] Cloud overlay
+- [x] Precipitation animation
 - [ ] Snow accumulation display
 
 ### Phase 3: Ecology Foundation (6-12 months out)
-- [ ] Grass growth and spreading
+- [x] Grass growth and spreading
 - [ ] Flower systems
 - [ ] Tree lifecycle (sapling → mature → old)
 - [ ] Fruit/nut/seed production
 - [ ] Mushroom growth
 - [ ] Plant visualization layers
-- [ ] Ecology configuration system
+- [x] Ecology configuration system
 
 ### Phase 4: Animals & Birds (12-18 months out)
 - [ ] Vision and perception systems

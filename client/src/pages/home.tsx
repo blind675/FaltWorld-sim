@@ -25,6 +25,7 @@ import {
   Wind,
   Gauge,
   Leaf,
+  Cloud,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -90,6 +91,8 @@ export default function Home({ viewportManager }: HomeProps) {
       showRivers: true,
       showMoisture: true,
       showElevation: true,
+      showClouds: false,
+      showPrecipitation: false,
       exaggerateHeight: 1.0,
       contourLines: false,
       contourInterval: 100,
@@ -315,6 +318,16 @@ export default function Home({ viewportManager }: HomeProps) {
                     <div>{(selectedCell.cell.air_humidity * 100).toFixed(1)}%</div>
 
                     <div className="font-semibold flex items-center gap-1">
+                      <Cloud className="h-4 w-4" />
+                      Clouds:
+                    </div>
+                    <div>
+                      {selectedCell.cell.cloud_density != null
+                        ? `${(selectedCell.cell.cloud_density * 100).toFixed(0)}%`
+                        : "N/A"}
+                    </div>
+
+                    <div className="font-semibold flex items-center gap-1">
                       <Wind className="h-4 w-4" />
                       Wind:
                     </div>
@@ -332,6 +345,16 @@ export default function Home({ viewportManager }: HomeProps) {
                       {selectedCell.cell.atmospheric_pressure != null
                         ? `${selectedCell.cell.atmospheric_pressure.toFixed(0)} hPa`
                         : "N/A"}
+                    </div>
+
+                    <div className="font-semibold">Rain:</div>
+                    <div>
+                      {selectedCell.cell.precipitation_rate != null &&
+                      selectedCell.cell.precipitation_rate > 0
+                        ? `${(selectedCell.cell.precipitation_rate * 100).toFixed(
+                            0,
+                          )}%`
+                        : "None"}
                     </div>
                   </div>
                 </div>
@@ -366,6 +389,7 @@ export default function Home({ viewportManager }: HomeProps) {
                                 | "humidity"
                                 | "wind"
                                 | "grass",
+                                | "pressure",
                             });
                           }}
                         >
@@ -387,6 +411,8 @@ export default function Home({ viewportManager }: HomeProps) {
                             </SelectItem>
                             <SelectItem value="grass">
                               Grass Coverage
+                            <SelectItem value="pressure">
+                              Pressure
                             </SelectItem>
                           </SelectContent>
                         </Select>
@@ -557,6 +583,48 @@ export default function Home({ viewportManager }: HomeProps) {
                             setVisualizationSettings({
                               ...visualizationSettings,
                               showElevation: checked,
+                            });
+                          }}
+                        />
+                      </div>
+
+                      <Separator />
+
+                      <div className="flex items-center justify-between">
+                        <Label
+                          htmlFor="clouds-toggle"
+                          className="cursor-pointer"
+                        >
+                          <Cloud className="h-4 w-4 inline-block mr-1" />
+                          Show Clouds
+                        </Label>
+                        <Switch
+                          id="clouds-toggle"
+                          checked={visualizationSettings.showClouds}
+                          onCheckedChange={(checked) => {
+                            setVisualizationSettings({
+                              ...visualizationSettings,
+                              showClouds: checked,
+                            });
+                          }}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <Label
+                          htmlFor="precipitation-toggle"
+                          className="cursor-pointer"
+                        >
+                          <Droplets className="h-4 w-4 inline-block mr-1" />
+                          Show Precipitation
+                        </Label>
+                        <Switch
+                          id="precipitation-toggle"
+                          checked={visualizationSettings.showPrecipitation}
+                          onCheckedChange={(checked) => {
+                            setVisualizationSettings({
+                              ...visualizationSettings,
+                              showPrecipitation: checked,
                             });
                           }}
                         />
