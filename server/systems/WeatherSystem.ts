@@ -10,14 +10,19 @@ const MIN_VECTOR_MAGNITUDE = 1e-6;
 
 /**
  * Calculates atmospheric pressure and wind vectors from pressure gradients.
+ * Pressure is smoothed over a configurable radius to create realistic
+ * large-scale pressure systems rather than noisy per-cell variations.
  */
 export class WeatherSystem implements ISimulationSystem {
+    private smoothedPressure: number[][] = [];
+
     update(terrain: TerrainGrid, gameTime: GameTime): void {
-        this.updatePressure(terrain);
+        this.updateRawPressure(terrain);
+        this.smoothPressure(terrain);
         this.updateWind(terrain);
     }
 
-    private updatePressure(terrain: TerrainGrid): void {
+    private updateRawPressure(terrain: TerrainGrid): void {
         const { width, height } = GridHelper.getDimensions(terrain);
 
         for (let y = 0; y < height; y++) {
@@ -31,6 +36,66 @@ export class WeatherSystem implements ISimulationSystem {
                     - (altitude * WEATHER_CONFIG.PRESSURE_LAPSE_RATE)
                     - (temperature * WEATHER_CONFIG.TEMP_PRESSURE_FACTOR)
                     - (humidity * WEATHER_CONFIG.HUMIDITY_PRESSURE_FACTOR);
+            }
+        }
+    }
+
+    private smoothPressure(terrain: TerrainGrid): void {
+        const { width, height } = GridHelper.getDimensions(terrain);
+        const radius = WEATHER_CONFIG.PRESSURE_SMOOTHING_RADIUS;
+        const passes = WEATHER_CONFIG.PRESSURE_SMOOTHING_PASSES;
+
+        // Initialize smoothed pressure array
+        if (this.smoothedPressure.length !== height) {
+            this.smoothedPressure = Array.from({ length: height }, () =>
+                new Array(width).fill(0)
+            );
+        }
+
+        // Copy current pressure to smoothed array
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                this.smoothedPressure[y][x] = terrain[y][x].atmospheric_pressure ?? WEATHER_CONFIG.BASE_PRESSURE;
+            }
+        }
+
+        // Apply box blur passes
+        for (let pass = 0; pass < passes; pass++) {
+            const temp = Array.from({ length: height }, () =>
+                new Array(width).fill(0)
+            );
+
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    let sum = 0;
+                    let count = 0;
+
+                    // Sample in a box around the cell (with world wrapping)
+                    for (let dy = -radius; dy <= radius; dy++) {
+                        for (let dx = -radius; dx <= radius; dx++) {
+                            const nx = ((x + dx) % width + width) % width;
+                            const ny = ((y + dy) % height + height) % height;
+                            sum += this.smoothedPressure[ny][nx];
+                            count++;
+                        }
+                    }
+
+                    temp[y][x] = sum / count;
+                }
+            }
+
+            // Copy result back
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    this.smoothedPressure[y][x] = temp[y][x];
+                }
+            }
+        }
+
+        // Write smoothed pressure back to terrain
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                terrain[y][x].atmospheric_pressure = this.smoothedPressure[y][x];
             }
         }
     }

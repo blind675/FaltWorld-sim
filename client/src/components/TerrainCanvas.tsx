@@ -338,6 +338,12 @@ export function TerrainCanvas({
               {((hoveredCell.cell.air_humidity || 0) * 100).toFixed(1)}%
             </span>
           </div>
+          <div>
+            Pressure:{" "}
+            <span className="font-medium">
+              {hoveredCell.cell.atmospheric_pressure?.toFixed(0) ?? "N/A"} hPa
+            </span>
+          </div>
         </div>
       )}
     </div>

@@ -130,6 +130,10 @@ export const WEATHER_CONFIG = {
     TEMP_PRESSURE_FACTOR: 0.4,     // Pressure change per °C
     HUMIDITY_PRESSURE_FACTOR: 2,   // Pressure change per humidity unit
 
+    // Pressure smoothing (creates realistic large-scale pressure systems)
+    PRESSURE_SMOOTHING_RADIUS: 8,  // Cells to average over (larger = smoother)
+    PRESSURE_SMOOTHING_PASSES: 2,  // Number of blur passes (more = smoother)
+
     // Wind generation
     WIND_GENERATION_FACTOR: 2.0,   // m/s per hPa pressure difference
     MAX_WIND_SPEED: 30,            // Maximum wind speed in m/s

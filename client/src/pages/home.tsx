@@ -23,6 +23,7 @@ import {
   MapPin,
   Thermometer,
   Wind,
+  Gauge,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -308,6 +309,16 @@ export default function Home({ viewportManager }: HomeProps) {
                     <div>
                       {selectedCell.cell.wind_speed != null
                         ? `${selectedCell.cell.wind_speed.toFixed(1)} m/s @ ${selectedCell.cell.wind_direction?.toFixed(0)}°`
+                        : "N/A"}
+                    </div>
+
+                    <div className="font-semibold flex items-center gap-1">
+                      <Gauge className="h-4 w-4" />
+                      Pressure:
+                    </div>
+                    <div>
+                      {selectedCell.cell.atmospheric_pressure != null
+                        ? `${selectedCell.cell.atmospheric_pressure.toFixed(0)} hPa`
                         : "N/A"}
                     </div>
                   </div>

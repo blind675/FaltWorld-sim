@@ -67,6 +67,11 @@ export class CanvasRenderer {
 
     this.renderTerrain(context, colorLayer);
 
+    // Call render on color layer for additional rendering (e.g., wind arrows)
+    if (colorLayer.shouldRender(settings)) {
+      colorLayer.render(context);
+    }
+
     for (const layer of this.overlayLayers) {
       if (layer.shouldRender(settings)) {
         layer.render(context);
