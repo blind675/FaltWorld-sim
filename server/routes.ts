@@ -60,6 +60,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/weather-stats", async (req, res) => {
+    try {
+      const metrics = storage.getSimulationEngine().getWeatherMetrics();
+      const latest = metrics.getLatest();
+      const history = metrics.getHistory();
+
+      res.json({
+        current: latest,
+        history: history.slice(-20),
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get weather stats" });
+    }
+  });
+
   app.get("/api/viewport", async (req, res) => {
     try {
       const x = Number(req.query.x);

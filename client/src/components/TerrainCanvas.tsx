@@ -56,6 +56,8 @@ export function TerrainCanvas({
     showRivers: true,
     showMoisture: true,
     showElevation: true,
+    showClouds: false,
+    showPrecipitation: false,
     exaggerateHeight: 1.0,
     contourLines: false,
     contourInterval: 100,

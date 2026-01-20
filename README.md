@@ -88,8 +88,10 @@ Each system implements the `ISimulationSystem` interface with a single `update(t
   - Optimized minimap with 10-minute terrain cache
   - Real-time viewport indicator updates during navigation
 - **Visualization Modes**:
-  - Default, Heightmap, Moisture, Temperature, Humidity
+  - Default, Heightmap, Moisture, Temperature, Humidity, Pressure
   - **Wind mode**: Color-coded wind speed with directional arrows
+  - **Cloud overlay**: Density-based white cloud cover
+  - **Precipitation overlay**: Animated rainfall visualization
   - Cell info panel shows wind speed (m/s) and direction (degrees)
 
 ### Known Issues
@@ -101,9 +103,7 @@ Each system implements the `ISimulationSystem` interface with a single `update(t
 - Snow accumulation and melting
 
 **Weather Visualization (remaining):**
-- Pressure map color layer
-- Cloud overlay visualization
-- Precipitation animation
+- Snow accumulation display
 
 **Future Phases:**
 - Phase 3: Ecology (grass, trees, mushrooms)

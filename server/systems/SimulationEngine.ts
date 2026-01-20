@@ -13,6 +13,7 @@ import { CondensationSystem } from "./CondensationSystem";
 import { MoistureSystem } from "./MoistureSystem";
 import { GrassSystem } from "./GrassSystem";
 import { PERFORMANCE_CONFIG } from "../config";
+import { WeatherMetrics } from "./WeatherMetrics";
 
 /**
  * Orchestrates all simulation systems in the correct order
@@ -42,6 +43,9 @@ export class SimulationEngine {
     private condensationSystem: CondensationSystem;
     private moistureSystem: MoistureSystem;
     private grassSystem: GrassSystem;
+    private weatherMetrics: WeatherMetrics;
+    private ticksSinceLastMetrics = 0;
+    private METRICS_INTERVAL = 12;
 
     constructor() {
         this.temperatureSystem = new TemperatureSystem();
@@ -55,6 +59,7 @@ export class SimulationEngine {
         this.condensationSystem = new CondensationSystem();
         this.moistureSystem = new MoistureSystem();
         this.grassSystem = new GrassSystem();
+        this.weatherMetrics = new WeatherMetrics();
     }
 
     /**
@@ -62,6 +67,10 @@ export class SimulationEngine {
      */
     getHydrologySystem(): HydrologySystem {
         return this.hydrologySystem;
+    }
+
+    getWeatherMetrics(): WeatherMetrics {
+        return this.weatherMetrics;
     }
 
     /**
@@ -125,6 +134,17 @@ export class SimulationEngine {
         if (shouldLog) console.time("Grass");
         this.grassSystem.update(terrain, gameTime);
         if (shouldLog) console.timeEnd("Grass");
+        this.ticksSinceLastMetrics += 1;
+        if (this.ticksSinceLastMetrics >= this.METRICS_INTERVAL) {
+            const snapshot = this.weatherMetrics.captureSnapshot(terrain);
+            this.weatherMetrics.logSummary(snapshot);
+
+            if (snapshot.tick % 5 === 0) {
+                this.weatherMetrics.analyzeClosedLoop();
+            }
+
+            this.ticksSinceLastMetrics = 0;
+        }
 
         if (shouldLog) {
             const totalTime = Date.now() - startTime;

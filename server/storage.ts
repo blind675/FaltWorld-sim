@@ -48,6 +48,7 @@ export interface IStorage {
   generateTerrain(): Promise<TerrainGrid>;
   landUpdate(): Promise<void>;
   getGameTime(): GameTime;
+  getSimulationEngine(): SimulationEngine;
 }
 
 export class MemStorage implements IStorage {
@@ -127,6 +128,10 @@ export class MemStorage implements IStorage {
 
   getWorldSize(): number {
     return this.terrain.length;
+  }
+
+  getSimulationEngine(): SimulationEngine {
+    return this.simulationEngine;
   }
 
 
