@@ -135,3 +135,27 @@ export const WEATHER_CONFIG = {
     MAX_WIND_SPEED: 30,            // Maximum wind speed in m/s
     WIND_SMOOTHING_FACTOR: 0.3,    // Smoothing between ticks (0-1)
 };
+
+export const WIND_TRANSPORT_CONFIG = {
+    HUMIDITY_TRANSPORT_RATE: 0.1,  // fraction of humidity moved per tick
+    HEAT_TRANSPORT_RATE: 0.02,     // fraction of temp difference advected
+    MIN_WIND_FOR_TRANSPORT: 0.5,   // minimum wind speed to trigger transport
+};
+
+export const CLOUD_CONFIG = {
+    BASE_SATURATION: 0.7,            // humidity threshold at sea level
+    ALTITUDE_SATURATION_FACTOR: 0.3, // how much altitude reduces threshold
+    CLOUD_FORMATION_RATE: 0.15,      // humidity → cloud conversion rate
+    CLOUD_DISSIPATION_RATE: 0.05,    // cloud decay when undersaturated
+    CLOUD_ADVECTION_RATE: 0.2,       // how much clouds move with wind
+};
+
+export const PRECIPITATION_CONFIG = {
+    PRECIP_THRESHOLD: 0.4,        // cloud density required for rain
+    PRECIP_RATE: 0.3,             // cloud → rain conversion rate
+    GROUND_ABSORPTION_RATE: 0.5,  // rain → ground moisture
+    WETNESS_FROM_RAIN: 0.8,       // rain → ground wetness
+    HUMIDITY_REDUCTION: 0.1,      // humidity lost per unit rain
+    COOLING_FACTOR: 0.5,          // temperature drop per unit rain
+    WETNESS_DRY_RATE: 0.02,       // ground wetness evaporation per tick
+};
