@@ -24,6 +24,7 @@ import {
   Thermometer,
   Wind,
   Gauge,
+  Leaf,
   Cloud,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
@@ -294,6 +295,17 @@ export default function Home({ viewportManager }: HomeProps) {
                     <div>{selectedCell.cell.moisture.toFixed(2)}</div>
 
                     <div className="font-semibold flex items-center gap-1">
+                      <Leaf className="h-4 w-4" />
+                      Grass:
+                    </div>
+                    <div>
+                      {selectedCell.cell.grass_density != null &&
+                      selectedCell.cell.grass_density > 0
+                        ? `${(selectedCell.cell.grass_density * 100).toFixed(0)}% (${selectedCell.cell.grass_type ?? "unknown"})`
+                        : "None"}
+                    </div>
+
+                    <div className="font-semibold flex items-center gap-1">
                       <Thermometer className="h-4 w-4" />
                       Temperature:
                     </div>
@@ -376,6 +388,7 @@ export default function Home({ viewportManager }: HomeProps) {
                                 | "temperature"
                                 | "humidity"
                                 | "wind"
+                                | "grass",
                                 | "pressure",
                             });
                           }}
@@ -396,6 +409,8 @@ export default function Home({ viewportManager }: HomeProps) {
                             <SelectItem value="wind">
                               Wind
                             </SelectItem>
+                            <SelectItem value="grass">
+                              Grass Coverage
                             <SelectItem value="pressure">
                               Pressure
                             </SelectItem>

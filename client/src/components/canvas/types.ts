@@ -16,6 +16,7 @@ export interface VisualizationSettings {
     | "temperature"
     | "humidity"
     | "wind"
+    | "grass";
     | "pressure";
   wireframe: boolean;
   zoomLevel: number; // 1.0 is normal, higher values zoom in

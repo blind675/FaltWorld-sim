@@ -3,6 +3,7 @@ import { type CellInfo, type VisualizationSettings } from "./types";
 import {
   CloudLayer,
   ContourLayer,
+  GrassLayer,
   HeightmapLayer,
   HumidityLayer,
   MoistureLayer,
@@ -33,6 +34,7 @@ export class CanvasRenderer {
     this.registerColorModeLayer("temperature", new TemperatureLayer());
     this.registerColorModeLayer("humidity", new HumidityLayer());
     this.registerColorModeLayer("wind", new WindLayer());
+    this.registerColorModeLayer("grass", new GrassLayer());
     this.registerColorModeLayer("pressure", new PressureLayer());
 
     this.registerOverlayLayer(new RiverLayer());
