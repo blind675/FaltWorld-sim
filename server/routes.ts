@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { INTERVAL } from "./index";
 import { VIEWPORT_CONFIG } from "./config";
-import type { TerrainCell, TerrainGrid } from "@shared/schema";
+import type { TerrainCell, TerrainGrid } from "./schema";
 
 function extractViewport(
   terrain: TerrainGrid,
@@ -39,15 +39,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(terrain);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch terrain data" });
-    }
-  });
-
-  app.post("/api/terrain/generate", async (req, res) => {
-    try {
-      const terrain = await storage.generateTerrain();
-      res.json(terrain);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to generate terrain" });
     }
   });
 

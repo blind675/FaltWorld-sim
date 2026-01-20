@@ -1,4 +1,4 @@
-import { type TerrainCell, type TerrainGrid } from "@shared/schema";
+import { type TerrainCell, type TerrainGrid } from "./schema";
 import { type WorldConfig, DEFAULT_WORLD_CONFIG } from "./config";
 
 /**

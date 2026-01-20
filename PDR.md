@@ -71,22 +71,24 @@ Create an ever-evolving procedural world that simulates natural systems with suf
 
 ### 4.1 High-Level Architecture
 
+The project uses a **separated frontend/backend architecture** for independent deployment:
+
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    CLIENT (Browser)                     │
+│              FRONTEND (Next.js - Port 3000)             │
 │  ┌──────────────┐  ┌─────────────┐  ┌──────────────┐  │
 │  │   Viewport   │  │   Minimap   │  │  Game Clock  │  │
-│  │  (3x3-100x100)│  │ (Low-res)   │  │   Display    │  │
+│  │ (20x20-100x100)│  │ (150x150)   │  │   Display    │  │
 │  └──────────────┘  └─────────────┘  └──────────────┘  │
 │         │                  │                 │          │
 │         └──────────────────┴─────────────────┘          │
 │                          │                              │
-│                    HTTP Polling                         │
-│                   (every 5 minutes)                     │
+│               REST API (HTTP/CORS)                      │
+│              Auto-refresh every 60s                     │
 └──────────────────────────┼──────────────────────────────┘
                            │
 ┌──────────────────────────┼──────────────────────────────┐
-│                     SERVER (Node.js)                    │
+│              BACKEND (Express - Port 5001)              │
 │  ┌─────────────────────────────────────────────────┐   │
 │  │           World Simulation Engine               │   │
 │  │  ┌──────────┐  ┌──────────┐  ┌──────────────┐  │   │
@@ -95,18 +97,57 @@ Create an ever-evolving procedural world that simulates natural systems with suf
 │  │  ┌──────────┐  ┌──────────┐  ┌──────────────┐  │   │
 │  │  │ Moisture │  │ Humidity │  │   Weather    │  │   │
 │  │  └──────────┘  └──────────┘  └──────────────┘  │   │
-│  │                                                 │   │
-│  │  (Future: Ecology, Animals, Humans)            │   │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────────┐  │   │
+│  │  │  Clouds  │  │  Precip  │  │    Grass     │  │   │
+│  │  └──────────┘  └──────────┘  └──────────────┘  │   │
 │  └─────────────────────────────────────────────────┘   │
 │                          │                              │
 │                   ┌──────┴──────┐                       │
-│                   │  CRON JOB   │                       │
-│                   │ (5 min tick)│                       │
+│                   │  Interval   │                       │
+│                   │ (60s tick)  │                       │
 │                   └─────────────┘                       │
 └─────────────────────────────────────────────────────────┘
 ```
 
-### 4.2 Key Architectural Decisions
+### 4.2 Project Structure
+
+```
+/FlatWorld-sim
+├── server/                     # Backend application
+│   ├── schema.ts               # Database schema (Drizzle)
+│   ├── index.ts                # Express server + CORS
+│   ├── routes.ts               # API endpoints
+│   ├── storage.ts              # World state management
+│   ├── config.ts               # Configuration constants
+│   ├── worldGenerator.ts       # Procedural generation
+│   ├── systems/                # Simulation modules
+│   │   ├── SimulationEngine.ts
+│   │   ├── HydrologySystem.ts
+│   │   ├── TemperatureSystem.ts
+│   │   ├── MoistureSystem.ts
+│   │   ├── WeatherSystem.ts
+│   │   ├── CloudSystem.ts
+│   │   ├── PrecipitationSystem.ts
+│   │   ├── GrassSystem.ts
+│   │   └── GridHelper.ts
+│   └── scripts/
+│       └── regenerateTerrain.ts
+├── frontend/                   # Next.js application
+│   ├── src/app/                # App Router pages
+│   ├── src/components/         # React components
+│   ├── src/lib/                # API client, utilities
+│   └── package.json
+├── package.json                # Backend dependencies
+├── tsconfig.json               # Backend TypeScript config
+└── drizzle.config.ts           # Database config
+```
+
+### 4.3 Key Architectural Decisions
+
+**Separated Frontend/Backend** ✅ IMPLEMENTED
+- Frontend (Next.js) and backend (Express) are independently deployable
+- CORS-enabled API communication
+- Environment-based configuration for different deployments
 
 **Single Canonical World**
 - One persistent world state shared by all observers
@@ -119,22 +160,22 @@ Create an ever-evolving procedural world that simulates natural systems with suf
 - Current state is the complete truth
 
 **Modular Systems Architecture** ✅ IMPLEMENTED
-- Each natural system (hydrology, temperature, moisture, etc.) is an independent module
+- Each natural system is an independent module in `server/systems/`
 - All systems implement `ISimulationSystem` interface with `update(terrain, gameTime)` method
 - `SimulationEngine` orchestrates system execution in correct order
 - Systems are stateless (operate only on passed terrain data)
 - Enables parallel development without merge conflicts
-- Located in `server/systems/` directory
 
-**Viewport-Based Client Model**
-- Clients request only visible cells (3x3 to 100x100)
-- Separate low-resolution minimap for navigation
+**Viewport-Based Client Model** ✅ IMPLEMENTED
+- Clients request only visible cells (20x20 to 100x100)
+- Separate low-resolution minimap (150x150) for navigation
+- ViewportManager handles data fetching and caching
 - Reduces network payload and client rendering load
 
-**Simple Polling Architecture**
-- HTTP polling every 5 minutes aligned with tick rate
-- No WebSockets/SSE needed (reduces server complexity)
-- Acceptable 5-minute latency for observation use case
+**Auto-Refresh Architecture** ✅ IMPLEMENTED
+- Frontend auto-refreshes viewport data every 60 seconds
+- Backend runs simulation tick every 60 seconds
+- No manual refresh needed - world evolves automatically
 
 ---
 

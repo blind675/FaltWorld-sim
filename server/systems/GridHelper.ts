@@ -1,4 +1,4 @@
-import { type TerrainGrid, type TerrainCell } from "@shared/schema";
+import { type TerrainGrid, type TerrainCell } from "../schema";
 
 /**
  * Utility functions for grid operations with wrapping support

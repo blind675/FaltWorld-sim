@@ -1,4 +1,4 @@
-import { type TerrainGrid } from "@shared/schema";
+import { type TerrainGrid } from "../schema";
 import { type GameTime } from "../storage";
 import { type ISimulationSystem } from "./ISimulationSystem";
 import { GridHelper } from "./GridHelper";

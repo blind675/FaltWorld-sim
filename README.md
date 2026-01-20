@@ -1,20 +1,39 @@
 # FlatWorld Simulator
 
-A web-based procedural world generation and simulation system with dynamic water flow, terrain evolution, and an interactive game clock with seasonal day/night cycles.
+A procedural world generation and simulation system with dynamic weather, terrain evolution, and an interactive game clock with seasonal day/night cycles.
+
+## Project Structure
+
+The project is split into two independently deployable applications:
+
+```
+/FlatWorld-sim
+├── server/                 # Backend (Node.js/Express)
+│   ├── schema.ts           # Database schema (Drizzle ORM)
+│   ├── index.ts            # Express server entry point
+│   ├── routes.ts           # API endpoints
+│   ├── storage.ts          # World state management
+│   ├── config.ts           # Configuration constants
+│   ├── worldGenerator.ts   # Procedural terrain generation
+│   ├── systems/            # Simulation systems
+│   └── scripts/            # CLI scripts
+├── frontend/               # Frontend (Next.js) - separate project
+│   ├── src/app/            # Next.js App Router pages
+│   ├── src/components/     # React components
+│   ├── src/lib/            # Utilities and API client
+│   └── package.json        # Frontend dependencies
+├── package.json            # Backend dependencies
+├── tsconfig.json           # TypeScript config (backend)
+└── drizzle.config.ts       # Database config
+```
 
 ## Architecture
 
-The simulation uses a **modular systems architecture** where each natural system (hydrology, temperature, moisture, etc.) is implemented as an independent module. This design enables:
-- **Parallel development**: Multiple developers can work on different systems simultaneously
-- **Easy testing**: Each system can be tested in isolation
-- **Clear separation of concerns**: Each system has a single, well-defined responsibility
-- **Simple integration**: New systems can be added without modifying existing code
+### Backend (This Repository)
 
-### System Modules
+The simulation uses a **modular systems architecture** where each natural system is an independent module in `server/systems/`:
 
-All simulation systems are located in `server/systems/`:
-
-- **`SimulationEngine.ts`** - Orchestrates all systems in the correct execution order
+- **`SimulationEngine.ts`** - Orchestrates all systems in execution order
 - **`HydrologySystem.ts`** - River flow, erosion, and water dynamics
 - **`TemperatureSystem.ts`** - Temperature calculations (latitude, altitude, seasonal)
 - **`MoistureSystem.ts`** - Ground moisture propagation from water sources
@@ -29,6 +48,10 @@ All simulation systems are located in `server/systems/`:
 - **`GridHelper.ts`** - Shared utilities for grid operations with world wrapping
 
 Each system implements the `ISimulationSystem` interface with a single `update(terrain, gameTime)` method.
+
+### Frontend (Separate Project)
+
+Located in `frontend/`, the Next.js application connects to this backend via REST API. See `frontend/README.md` for setup instructions.
 
 ## Project Status
 
@@ -110,13 +133,77 @@ Each system implements the `ISimulationSystem` interface with a single `update(t
 - Phase 4: Animals (rabbits, foxes, wolves, bears)
 - Phase 5: Humans and civilization
 
-### Development Guide
+## Getting Started
 
-To add a new simulation system:
+### Backend Setup
+
+```bash
+# Install dependencies
+npm install
+
+# Start development server (port 5001)
+npm run dev
+
+# Build for production
+npm run build
+
+# Start production server
+npm run start
+```
+
+### Frontend Setup
+
+```bash
+cd frontend
+
+# Install dependencies
+npm install
+
+# Create environment file
+cp .env.local.example .env.local
+
+# Start development server (port 3000)
+npm run dev
+```
+
+### Available Scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Start backend dev server |
+| `npm run build` | Build backend for production |
+| `npm run start` | Run production backend |
+| `npm run regenerate-terrain` | Regenerate world terrain (CLI) |
+| `npm run db:push` | Push schema to database |
+
+### Environment Variables
+
+**Backend:**
+- `DATABASE_URL` - PostgreSQL connection string
+- `FRONTEND_URL` - Frontend URL for CORS (production)
+
+**Frontend** (`frontend/.env.local`):
+- `NEXT_PUBLIC_API_URL` - Backend API URL (default: `http://localhost:5001`)
+
+## Development Guide
+
+### Adding a New Simulation System
 
 1. Create `server/systems/YourSystem.ts` implementing `ISimulationSystem`
 2. Add system to `SimulationEngine` constructor
 3. Add system to `SimulationEngine.update()` in the appropriate order
 4. Add configuration to `server/config.ts` if needed
 
-See `REFACTORING_SUMMARY.md` for detailed architecture documentation.
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/terrain` | GET | Full terrain data |
+| `/api/viewport` | GET | Viewport chunk (x, y, width, height) |
+| `/api/minimap` | GET | Low-res minimap data |
+| `/api/time` | GET | Current game time |
+| `/api/config` | GET | Server configuration |
+| `/api/weather-stats` | GET | Weather metrics |
+| `/api/terrain/update` | GET | Trigger terrain update |
+
+See `PDR.md` for detailed architecture documentation.

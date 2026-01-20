@@ -1,4 +1,4 @@
-import { type TerrainCell, type TerrainGrid } from "@shared/schema";
+import { type TerrainCell, type TerrainGrid } from "./schema";
 import { WorldGenerator } from "./worldGenerator";
 import { DEFAULT_WORLD_CONFIG, GRASS_CONFIG, TIME_CONFIG, VIEWPORT_CONFIG } from "./config";
 import { SimulationEngine } from "./systems/SimulationEngine";

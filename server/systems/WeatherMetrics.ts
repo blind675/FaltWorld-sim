@@ -1,4 +1,4 @@
-import { type TerrainGrid } from "@shared/schema";
+import { type TerrainGrid } from "../schema";
 import { GridHelper } from "./GridHelper";
 
 export interface WeatherSnapshot {
