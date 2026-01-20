@@ -7,7 +7,14 @@ export interface VisualizationSettings {
   exaggerateHeight: number; // 1.0 is normal, higher values exaggerate the height differences
   contourLines: boolean;
   contourInterval: number; // Interval for contour lines
-  colorMode: "default" | "heightmap" | "moisture" | "temperature" | "humidity" | "wind";
+  colorMode:
+    | "default"
+    | "heightmap"
+    | "moisture"
+    | "temperature"
+    | "humidity"
+    | "wind"
+    | "grass";
   wireframe: boolean;
   zoomLevel: number; // 1.0 is normal, higher values zoom in
   panOffset: { x: number; y: number }; // Offset for panning

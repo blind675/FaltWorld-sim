@@ -1,4 +1,5 @@
 export { ContourLayer } from "./ContourLayer";
+export { GrassLayer } from "./GrassLayer";
 export { HeightmapLayer } from "./HeightmapLayer";
 export { HumidityLayer } from "./HumidityLayer";
 export { MoistureLayer } from "./MoistureLayer";

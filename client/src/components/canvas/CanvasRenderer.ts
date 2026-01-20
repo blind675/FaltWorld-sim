@@ -2,6 +2,7 @@ import { type TerrainCell, type TerrainGrid } from "@shared/schema";
 import { type CellInfo, type VisualizationSettings } from "./types";
 import {
   ContourLayer,
+  GrassLayer,
   HeightmapLayer,
   HumidityLayer,
   MoistureLayer,
@@ -30,6 +31,7 @@ export class CanvasRenderer {
     this.registerColorModeLayer("temperature", new TemperatureLayer());
     this.registerColorModeLayer("humidity", new HumidityLayer());
     this.registerColorModeLayer("wind", new WindLayer());
+    this.registerColorModeLayer("grass", new GrassLayer());
 
     this.registerOverlayLayer(new RiverLayer());
     this.registerOverlayLayer(new ContourLayer());
