@@ -962,7 +962,22 @@ Returns: {
 - [x] Wind-based humidity/heat transport
 - [x] Cloud formation and dynamics
 - [x] Precipitation system (rain only)
-- [ ] Closed-loop integration testing
+- [x] Closed-loop integration testing
+
+### Weather Observability
+
+The `WeatherMetrics` module provides:
+- Per-tick snapshots of all weather variables
+- Trend analysis for feedback loop verification
+- Periodic summary logging
+- `/api/weather-stats` endpoint for debugging
+
+Metrics tracked:
+- Average temperature, humidity, pressure, wind speed
+- Cloud coverage percentage
+- Rain coverage percentage
+- Ground wetness coverage
+- Feedback loop health assessment
 
 **Future Work - Snow & Movement:**
 - Snow accumulation when temperature < freezing

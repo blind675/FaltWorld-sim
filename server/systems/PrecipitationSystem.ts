@@ -2,7 +2,7 @@ import { type TerrainGrid } from "@shared/schema";
 import { type GameTime } from "../storage";
 import { type ISimulationSystem } from "./ISimulationSystem";
 import { GridHelper } from "./GridHelper";
-import { MOISTURE_CONFIG, PRECIPITATION_CONFIG } from "../config";
+import { DEBUG_CONFIG, MOISTURE_CONFIG, PRECIPITATION_CONFIG } from "../config";
 
 /**
  * Generates rain from clouds and applies ground impacts.
@@ -15,6 +15,8 @@ export class PrecipitationSystem implements ISimulationSystem {
         const { width, height } = GridHelper.getDimensions(terrain);
         let maxRain = 0;
         let maxRainCell: { x: number; y: number } | null = null;
+        let totalRain = 0;
+        let rainingCells = 0;
 
         for (let y = 0; y < height; y++) {
             for (let x = 0; x < width; x++) {
@@ -27,6 +29,8 @@ export class PrecipitationSystem implements ISimulationSystem {
                         * PRECIPITATION_CONFIG.PRECIP_RATE;
 
                     cell.precipitation_rate = intensity;
+                    totalRain += intensity;
+                    rainingCells += 1;
                     cell.cloud_density = Math.max(0, cloudDensity - intensity);
                     cell.air_humidity = Math.max(0, cell.air_humidity - intensity * PRECIPITATION_CONFIG.HUMIDITY_REDUCTION);
 
@@ -66,6 +70,12 @@ export class PrecipitationSystem implements ISimulationSystem {
         if (maxRainCell && maxRain > 0.05 && gameTime.hour % 6 === 0) {
             console.log(
                 `PrecipitationSystem: Rain at ${maxRainCell.x},${maxRainCell.y} - intensity: ${maxRain.toFixed(3)}`,
+            );
+        }
+
+        if (DEBUG_CONFIG.WEATHER_VERBOSE_LOGGING && totalRain > 0) {
+            console.log(
+                `PrecipitationSystem: ${rainingCells} cells raining, total: ${totalRain.toFixed(2)}`,
             );
         }
     }
