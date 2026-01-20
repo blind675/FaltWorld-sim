@@ -62,6 +62,7 @@ export class TemperatureSystem implements ISimulationSystem {
             for (let x = 0; x < width; x++) {
                 const cell = terrain[y][x];
                 const altitudeMeters = cell.terrain_height;
+                const humidity = cell.air_humidity ?? 0;  // Air humidity (0-1)
                 cell.temperature = getTemperature(
                     x,
                     y,
@@ -70,7 +71,8 @@ export class TemperatureSystem implements ISimulationSystem {
                     height,
                     monthTempDay,
                     monthTempNight,
-                    currentHour
+                    currentHour,
+                    humidity
                 );
             }
         }

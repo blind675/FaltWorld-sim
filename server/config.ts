@@ -68,6 +68,13 @@ export const MOISTURE_CONFIG = {
 
     // Evaporation
     baseDecay: 0.995,                     // Global evaporation (0.5% - this value = % moisture lost per tick)
+
+    // Distance decay (exponential falloff)
+    distanceDecayRate: 0.08,              // Higher = faster falloff (0.08 gives ~50% at distance 8)
+
+    // Diffusion smoothing (removes blocky patterns)
+    diffusionIterations: 3,               // Number of blur passes (more = smoother but slower)
+    diffusionStrength: 0.4,               // How much to blend with neighbors (0-1, higher = smoother)
 };
 
 export interface GrassSpecies {
@@ -187,7 +194,7 @@ export const DIFFUSION_CONFIG = {
     DOWNWARD_PENALTY_COEFF: 0.0005,     // 0.05% penalty per meter descended
     DOWNWARD_PENALTY_MAX: 0.3,          // 30% max penalty
     MIN_TRANSFER_THRESHOLD: 0.01,       // stop spreading below 1% humidity
-    MAX_CELLS_PROCESSED_PER_TICK: 1000000,
+    MAX_CELLS_PROCESSED_PER_TICK: 100000000,
 };
 
 // Performance Configuration

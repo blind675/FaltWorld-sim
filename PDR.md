@@ -205,10 +205,20 @@ The project uses a **separated frontend/backend architecture** for independent d
 - **Independent module:** 211 lines, fully self-contained
 
 #### Moisture System (`server/systems/MoistureSystem.ts`)
-- **Ground moisture diffusion:** Iterative propagation from water sources
-- **Altitude modifiers:** Elevation affects moisture spread
+- **Ground moisture propagation:** BFS-based spread from water sources (rivers, springs)
+- **Exponential distance decay:** Smooth falloff using `exp(-distance * rate)` for organic transitions
+- **Altitude modifiers:** 
+  - Uphill penalty: Moisture reduced when climbing elevation
+  - Downhill bonus: Moisture enhanced when descending
+  - Altitude dryness: Higher elevations naturally drier
+- **Water volume boost:** Larger water bodies spread more moisture
 - **Saturation limits:** Diminishing returns prevent over-saturation
-- **Independent module:** 160 lines, fully self-contained
+- **Diffusion smoothing:** Multi-pass neighbor averaging eliminates blocky patterns
+  - Configurable iterations (default: 3 passes)
+  - Diagonal neighbor weighting (0.707 vs 1.0 for cardinals)
+  - Creates gradual, realistic moisture gradients
+- **Evaporation:** Base decay rate for moisture loss over time
+- **Independent module:** 229 lines, fully self-contained
 
 #### Humidity & Evaporation Systems
 - **EvaporationSystem** (`server/systems/EvaporationSystem.ts`):
@@ -238,11 +248,19 @@ The project uses a **separated frontend/backend architecture** for independent d
 - **Independent module:** 113 lines, fully self-contained
 
 #### Temperature System (`server/systems/TemperatureSystem.ts`)
-- **Latitude-based base temperature:** Equator warm, poles cold
-- **Altitude effects:** Higher elevation = cooler
+- **Latitude-based base temperature:** Equator warm, poles cold (sin² wrapping for toroidal world)
+- **Altitude effects:** Lapse rate of -6°C per 1000m elevation
 - **Seasonal variation:** Month-specific temperature adjustments
 - **Hemispheric seasons:** North/South hemisphere season reversal
-- **Independent module:** 67 lines, fully self-contained
+- **Humidity-temperature interaction:** Real-world atmospheric physics
+  - **Thermal moderation:** High humidity reduces day/night temperature swings (water vapor's high heat capacity)
+    - Up to 40% reduction in temperature range at 100% humidity
+  - **Evaporative cooling (daytime):** Low humidity allows more evaporation, cooling the air
+    - Up to 2°C cooling in dry conditions during peak day
+  - **Heat retention (nighttime):** High humidity traps heat via greenhouse effect
+    - Up to 1.5°C warming in humid conditions during night
+  - Creates realistic climate patterns: stable coastal temps, extreme desert day/night swings
+- **Independent module:** 81 lines, fully self-contained
 
 #### Time System
 - **Game clock:** Years, months (30 days), days, hours, minutes

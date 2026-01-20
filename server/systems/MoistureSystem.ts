@@ -86,7 +86,8 @@ export class MoistureSystem implements ISimulationSystem {
 
                 const newDistance = distance + 1;
                 if (newDistance > maxDistance) continue;
-                const distanceDecay = Math.max(0, 1 - (newDistance * 0.008));
+                // Exponential decay for smoother, more organic falloff
+                const distanceDecay = Math.exp(-newDistance * config.distanceDecayRate);
 
                 const waterVolumeBoost = 1.0 + Math.min(
                     cell.water_height * config.waterVolumeBoostFactor,
@@ -165,6 +166,61 @@ export class MoistureSystem implements ISimulationSystem {
                         cell.base_moisture = 0;
                         cell.moisture = 0;
                     }
+                }
+            }
+        }
+
+        // Diffusion pass: smooth moisture transitions for organic appearance
+        this.applyMoistureDiffusion(terrain, config.diffusionIterations, config.diffusionStrength);
+    }
+
+    /**
+     * Apply diffusion to smooth moisture values between neighbors
+     * This creates more organic, gradual transitions instead of blocky patterns
+     */
+    private applyMoistureDiffusion(
+        terrain: TerrainGrid,
+        iterations: number,
+        strength: number
+    ): void {
+        const { width, height } = GridHelper.getDimensions(terrain);
+
+        for (let iter = 0; iter < iterations; iter++) {
+            // Create a copy of current moisture values
+            const moistureCopy: number[][] = [];
+            for (let y = 0; y < height; y++) {
+                moistureCopy[y] = [];
+                for (let x = 0; x < width; x++) {
+                    moistureCopy[y][x] = terrain[y][x].moisture;
+                }
+            }
+
+            // Apply diffusion
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const cell = terrain[y][x];
+
+                    // Don't diffuse water sources
+                    if (cell.type === "spring" || cell.type === "river") continue;
+
+                    const neighbors = GridHelper.getNeighbors(terrain, x, y);
+                    let totalMoisture = moistureCopy[y][x];
+                    let count = 1;
+
+                    for (const neighbor of neighbors) {
+                        // Weight diagonal neighbors less (distance is sqrt(2) vs 1)
+                        const isDiagonal = neighbor.x !== x && neighbor.y !== y;
+                        const weight = isDiagonal ? 0.707 : 1.0;
+                        totalMoisture += moistureCopy[neighbor.y][neighbor.x] * weight;
+                        count += weight;
+                    }
+
+                    const averageMoisture = totalMoisture / count;
+                    // Blend current value with average based on strength
+                    const newMoisture = cell.moisture * (1 - strength) + averageMoisture * strength;
+
+                    cell.moisture = newMoisture;
+                    cell.base_moisture = newMoisture;
                 }
             }
         }

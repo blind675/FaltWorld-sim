@@ -64,9 +64,11 @@ Located in `frontend/`, the Next.js application connects to this backend via RES
   - River merging when streams meet
   - Named river system with unique river tracking
 - **Moisture System**: 
-  - Moisture propagation from water sources
-  - Altitude-based moisture modifiers
+  - Moisture propagation from water sources with exponential distance decay
+  - Altitude-based moisture modifiers (uphill penalty, downhill bonus)
   - Evaporation and diminishing returns mechanics
+  - **Diffusion smoothing**: Multi-pass blur for organic, gradual transitions
+  - Eliminates blocky patterns for realistic moisture spread
 - **Time System**: 
   - Complete time tracking with years, months (30 days each), days, hours, and minutes
   - Each server tick = 1 hour of in-game time
@@ -83,6 +85,10 @@ Located in `frontend/`, the Next.js application connects to this backend via RES
   - Temperature calculation based on altitude (lapse rate: -6°C per 1000m)
   - Latitude-dependent base temperature (28°C at equator, -12°C at poles)
   - Seasonal variation with reversed seasons between hemispheres (north/south poles)
+  - **Humidity-temperature interaction**:
+    - Thermal moderation: High humidity reduces day/night temperature swings
+    - Evaporative cooling: Low humidity causes daytime cooling
+    - Heat retention: High humidity traps heat at night (greenhouse effect)
   - Precomputed seasonal factor for performance (single calculation per tick)
   - Realistic temperature ranges: 2°C seasonal amplitude at equator, 15°C at poles
   - Scales to large maps (90k cells per update cycle)

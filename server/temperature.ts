@@ -21,6 +21,11 @@ export const TEMPERATURE_CONFIG = {
   // Day/night cycle timing
   PEAK_DAY_HOUR: 14,       // Hour of maximum daily temperature (2 PM)
   PEAK_NIGHT_HOUR: 3,      // Hour of minimum daily temperature (3 AM)
+
+  // Humidity effects on temperature
+  HUMIDITY_THERMAL_MODERATION: 0.4,  // Max reduction in day/night temp swing (40% at 100% humidity)
+  HUMIDITY_EVAPORATIVE_COOLING: 2.0, // Max cooling from low humidity evaporation (°C)
+  HUMIDITY_HEAT_RETENTION: 1.5,      // Max warming from high humidity heat retention at night (°C)
 };
 
 /**
@@ -49,7 +54,8 @@ export function getTemperature(
   worldHeight: number,
   monthTempDay: number,
   monthTempNight: number,
-  currentHour: number
+  currentHour: number,
+  humidity: number = 0  // Air humidity 0-1 (optional for backward compatibility)
 ): number {
   // 1. Calculate base temperature with day/night cycle
   // Use smooth cosine interpolation between night and day temps
@@ -65,8 +71,13 @@ export function getTemperature(
   // Cosine oscillates from -1 (night) to +1 (day)
   const dayNightFactor = (1 - Math.cos(dayNightAngle)) / 2; // 0 at night, 1 at day
 
-  // Interpolate between night and day temperatures
-  const baseTemp = monthTempNight + (monthTempDay - monthTempNight) * dayNightFactor;
+  // Humidity thermal moderation: humid air reduces day/night temperature swings
+  // High humidity = more stable temperatures (water vapor has high heat capacity)
+  const thermalModeration = 1 - (humidity * TEMPERATURE_CONFIG.HUMIDITY_THERMAL_MODERATION);
+  const effectiveTempRange = (monthTempDay - monthTempNight) * thermalModeration;
+
+  // Interpolate between night and day temperatures (with humidity-moderated range)
+  const baseTemp = monthTempNight + effectiveTempRange * dayNightFactor;
 
   // 2. Calculate latitude modifier (distance from equator)
   // Use sin²(theta/2) for smooth wrapping on toroidal world
@@ -82,7 +93,22 @@ export function getTemperature(
   const effectiveAltitude = Math.max(0, altitudeMeters);
   const altitudeCooling = TEMPERATURE_CONFIG.LAPSE_RATE * effectiveAltitude;
 
-  // Final temperature = base + latitude effect + altitude effect
-  return baseTemp + latitudeCooling + altitudeCooling;
+  // 4. Humidity effects
+  // Low humidity: evaporative cooling during the day (dry air allows more evaporation)
+  // High humidity: heat retention at night (water vapor traps heat)
+  let humidityEffect = 0;
+
+  if (dayNightFactor > 0.5) {
+    // Daytime: low humidity causes evaporative cooling
+    const evaporativeCooling = (1 - humidity) * TEMPERATURE_CONFIG.HUMIDITY_EVAPORATIVE_COOLING * (dayNightFactor - 0.5) * 2;
+    humidityEffect = -evaporativeCooling;
+  } else {
+    // Nighttime: high humidity retains heat (greenhouse effect)
+    const heatRetention = humidity * TEMPERATURE_CONFIG.HUMIDITY_HEAT_RETENTION * (0.5 - dayNightFactor) * 2;
+    humidityEffect = heatRetention;
+  }
+
+  // Final temperature = base + latitude effect + altitude effect + humidity effect
+  return baseTemp + latitudeCooling + altitudeCooling + humidityEffect;
 }
 
