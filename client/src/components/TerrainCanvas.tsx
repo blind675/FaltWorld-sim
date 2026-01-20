@@ -1,20 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { type TerrainGrid, type TerrainCell } from "@shared/schema";
+import { type TerrainGrid } from "@shared/schema";
 import { ViewportManager } from "@/lib/viewportManager";
+import { CanvasRenderer } from "./canvas/CanvasRenderer";
+import { MinimapRenderer } from "./canvas/MinimapRenderer";
+import { type CellInfo, type VisualizationSettings } from "./canvas/types";
+import { useCanvasInteraction } from "./hooks/useCanvasInteraction";
+import { useCanvasPan } from "./hooks/useCanvasPan";
 
-// Visualization settings interface
-export interface VisualizationSettings {
-  showRivers: boolean;
-  showMoisture: boolean;
-  showElevation: boolean;
-  exaggerateHeight: number; // 1.0 is normal, higher values exaggerate the height differences
-  contourLines: boolean;
-  contourInterval: number; // Interval for contour lines
-  colorMode: "default" | "heightmap" | "moisture" | "temperature" | "humidity" | "wind";
-  wireframe: boolean;
-  zoomLevel: number; // 1.0 is normal, higher values zoom in
-  panOffset: { x: number; y: number }; // Offset for panning
-}
+export type { VisualizationSettings } from "./canvas/types";
 
 interface TerrainCanvasProps {
   terrain?: TerrainGrid;
@@ -29,14 +22,6 @@ interface TerrainCanvasProps {
   ) => void;
 }
 
-interface CellInfo {
-  cell: TerrainCell;
-  x: number;
-  y: number;
-  screenX: number;
-  screenY: number;
-}
-
 export function TerrainCanvas({
   terrain,
   viewportManager,
@@ -49,13 +34,8 @@ export function TerrainCanvas({
 }: TerrainCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const minimapRef = useRef<HTMLCanvasElement>(null);
-  const minimapCacheRef = useRef<ImageData | null>(null);
-  const lastMinimapRenderRef = useRef<number>(0);
-  const lastMinimapColorModeRef = useRef<string | null>(null);
-  const MINIMAP_REFRESH_INTERVAL = 10 * 60 * 1000; // 10 minutes in milliseconds
-  const [hoveredCell, setHoveredCell] = useState<CellInfo | null>(null);
-  const [selectedCell, setSelectedCell] = useState<CellInfo | null>(null);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const rendererRef = useRef<CanvasRenderer | null>(null);
+  const minimapRendererRef = useRef<MinimapRenderer | null>(null);
   const [renderTerrain, setRenderTerrain] = useState<TerrainGrid>(
     terrain ?? [],
   );
@@ -64,7 +44,14 @@ export function TerrainCanvas({
     terrain?.length ?? viewportManager?.getWorldSize() ?? 0,
   );
 
-  // Default visualization settings
+  if (!rendererRef.current) {
+    rendererRef.current = new CanvasRenderer();
+  }
+
+  if (!minimapRendererRef.current) {
+    minimapRendererRef.current = new MinimapRenderer();
+  }
+
   const defaultSettings: VisualizationSettings = {
     showRivers: true,
     showMoisture: true,
@@ -78,16 +65,12 @@ export function TerrainCanvas({
     panOffset: { x: 0, y: 0 },
   };
 
-  // Merge default settings with provided settings
   const settings: VisualizationSettings = {
     ...defaultSettings,
     ...visualizationSettings,
   };
 
   const terrainGrid = terrain ?? renderTerrain;
-
-  const createEmptyGrid = (size: number): TerrainGrid =>
-    Array.from({ length: size }, () => Array<TerrainCell>(size));
 
   const getViewportBounds = () => {
     if (!worldSize) {
@@ -96,17 +79,12 @@ export function TerrainCanvas({
 
     const zoomLevel = settings.zoomLevel || 1.0;
     const panOffset = settings.panOffset || { x: 0, y: 0 };
-
     const cellWidth = (width / worldSize) * zoomLevel;
     const cellHeight = (height / worldSize) * zoomLevel;
     const worldWidth = worldSize * cellWidth;
     const worldHeight = worldSize * cellHeight;
-
-    const normalizedPanX =
-      ((panOffset.x % worldWidth) + worldWidth) % worldWidth;
-    const normalizedPanY =
-      ((panOffset.y % worldHeight) + worldHeight) % worldHeight;
-
+    const normalizedPanX = ((panOffset.x % worldWidth) + worldWidth) % worldWidth;
+    const normalizedPanY = ((panOffset.y % worldHeight) + worldHeight) % worldHeight;
     const startX = Math.floor(-normalizedPanX / cellWidth);
     const startY = Math.floor(-normalizedPanY / cellHeight);
     const endX = Math.ceil((width - normalizedPanX) / cellWidth);
@@ -148,9 +126,6 @@ export function TerrainCanvas({
         }
         const nextWorldSize = viewportManager.getWorldSize();
         setWorldSize(nextWorldSize);
-
-        // Instead of creating a sparse grid, just use the viewport data directly
-        // The rendering code will handle wrapping
         setRenderTerrain(viewport);
       })
       .catch((error) => {
@@ -200,736 +175,74 @@ export function TerrainCanvas({
     worldSize,
   ]);
 
-  // Helper function to get cell color based on visualization settings
-  const getCellColor = (cell: TerrainCell) => {
-    // If we're using heightmap mode, only show elevation
-    if (settings.colorMode === "heightmap") {
-      const normalizedValue = (cell.altitude + 200) / 2400;
-      // Adjust height exaggeration factor
-      const adjustedValue = Math.min(
-        1,
-        normalizedValue * settings.exaggerateHeight,
-      );
-      // Use a blue-to-white-to-brown gradient for heightmap
-      if (adjustedValue < 0.5) {
-        // Blue (0,0,255) to white (255,255,255)
-        const factor = adjustedValue * 2; // 0 to 1
-        const r = Math.floor(255 * factor);
-        const g = Math.floor(255 * factor);
-        const b = 255;
-        return `rgb(${r}, ${g}, ${b})`;
-      } else {
-        // White (255,255,255) to brown (102,51,0)
-        const factor = (adjustedValue - 0.5) * 2; // 0 to 1
-        const r = Math.floor(255 - (255 - 102) * factor);
-        const g = Math.floor(255 - (255 - 51) * factor);
-        const b = Math.floor(255 - 255 * factor);
-        return `rgb(${r}, ${g}, ${b})`;
-      }
-    }
+  const {
+    hoveredCell,
+    selectedCell,
+    mousePosition,
+    handleMouseMove,
+    handleMouseLeave,
+    handleClick,
+  } = useCanvasInteraction({
+    canvasRef,
+    terrainGrid,
+    width,
+    height,
+    settings,
+    onCellSelect,
+  });
 
-    // If we're using moisture mode, only show moisture
-    if (settings.colorMode === "moisture") {
-      // Use blue gradient for moisture
-      const moistureValue = cell.moisture;
-      // Blue gradient from white (dry) to dark blue (wet)
-      const b = Math.floor(255);
-      const g = Math.floor(255 * (1 - moistureValue));
-      const r = Math.floor(255 * (1 - moistureValue));
-      return `rgb(${r}, ${g}, ${b})`;
-    }
+  const { handleMouseDown } = useCanvasPan({
+    settings,
+    onVisualizationSettingsChange,
+  });
 
-    // If we're using temperature mode, show actual temperature
-    if (settings.colorMode === "temperature") {
-      // Use actual temperature from cell (ranges approximately -20°C to +30°C)
-      // Normalize to 0-1 range for color mapping
-      const minTemp = -20;
-      const maxTemp = 30;
-      const normalizedTemp = (cell.temperature - minTemp) / (maxTemp - minTemp);
-      const clampedTemp = Math.max(0, Math.min(1, normalizedTemp));
-
-      // Color gradient: Blue (cold) → Cyan → Green → Yellow → Red (hot)
-      if (clampedTemp < 0.25) {
-        // Blue to Cyan (very cold: -20°C to -7.5°C)
-        const factor = clampedTemp * 4;
-        const r = 0;
-        const g = Math.floor(255 * factor);
-        const b = 255;
-        return `rgb(${r}, ${g}, ${b})`;
-      } else if (clampedTemp < 0.5) {
-        // Cyan to Green (cold: -7.5°C to +5°C)
-        const factor = (clampedTemp - 0.25) * 4;
-        const r = 0;
-        const g = 255;
-        const b = Math.floor(255 * (1 - factor));
-        return `rgb(${r}, ${g}, ${b})`;
-      } else if (clampedTemp < 0.75) {
-        // Green to Yellow (moderate: +5°C to +17.5°C)
-        const factor = (clampedTemp - 0.5) * 4;
-        const r = Math.floor(255 * factor);
-        const g = 255;
-        const b = 0;
-        return `rgb(${r}, ${g}, ${b})`;
-      } else {
-        // Yellow to Red (hot: +17.5°C to +30°C)
-        const factor = (clampedTemp - 0.75) * 4;
-        const r = 255;
-        const g = Math.floor(255 * (1 - factor));
-        const b = 0;
-        return `rgb(${r}, ${g}, ${b})`;
-      }
-    }
-
-    // If we're using humidity mode, show air humidity
-    if (settings.colorMode === "humidity") {
-      // Air humidity gradient: tan (dry) → light blue → deep blue (saturated)
-      const humidityValue = Math.min(1, Math.max(0, cell.air_humidity));
-
-      if (humidityValue < 0.5) {
-        // 0% to 50%: Light tan (245, 222, 179) to light blue (173, 216, 230)
-        const factor = humidityValue * 2; // 0 to 1
-        const r = Math.floor(245 - (245 - 173) * factor);
-        const g = Math.floor(222 - (222 - 216) * factor);
-        const b = Math.floor(179 + (230 - 179) * factor);
-        return `rgb(${r}, ${g}, ${b})`;
-      } else {
-        // 50% to 100%: Light blue (173, 216, 230) to deep blue (0, 0, 139)
-        const factor = (humidityValue - 0.5) * 2; // 0 to 1
-        const r = Math.floor(173 - 173 * factor);
-        const g = Math.floor(216 - 216 * factor);
-        const b = Math.floor(230 - (230 - 139) * factor);
-        return `rgb(${r}, ${g}, ${b})`;
-      }
-    }
-
-    // If we're using wind mode, show wind speed as background color
-    if (settings.colorMode === "wind") {
-      const windSpeed = cell.wind_speed ?? 0;
-      const maxWindSpeed = 15; // Max expected wind speed in m/s
-      const normalizedSpeed = Math.min(1, windSpeed / maxWindSpeed);
-
-      // Color gradient: Light gray (calm) → Light blue → Blue → Purple (strong)
-      if (normalizedSpeed < 0.33) {
-        // Calm: Light gray (230, 230, 230) to light blue (173, 216, 230)
-        const factor = normalizedSpeed * 3;
-        const r = Math.floor(230 - (230 - 173) * factor);
-        const g = Math.floor(230 - (230 - 216) * factor);
-        const b = 230;
-        return `rgb(${r}, ${g}, ${b})`;
-      } else if (normalizedSpeed < 0.66) {
-        // Moderate: Light blue (173, 216, 230) to blue (65, 105, 225)
-        const factor = (normalizedSpeed - 0.33) * 3;
-        const r = Math.floor(173 - (173 - 65) * factor);
-        const g = Math.floor(216 - (216 - 105) * factor);
-        const b = Math.floor(230 - (230 - 225) * factor);
-        return `rgb(${r}, ${g}, ${b})`;
-      } else {
-        // Strong: Blue (65, 105, 225) to purple (128, 0, 128)
-        const factor = (normalizedSpeed - 0.66) * 3;
-        const r = Math.floor(65 + (128 - 65) * factor);
-        const g = Math.floor(105 - 105 * factor);
-        const b = Math.floor(225 - (225 - 128) * factor);
-        return `rgb(${r}, ${g}, ${b})`;
-      }
-    }
-
-    // Default visualization mode (original logic)
-    if (cell.type === "spring" && settings.showRivers) {
-      return "rgb(0, 0, 255)"; // Blue for springs
-    } else if (cell.type === "river" && settings.showRivers) {
-      // Different blue shades based on water height
-      if (cell.water_height >= 2) {
-        return "rgb(0, 64, 192)"; // Darker blue for deeper rivers
-      } else {
-        return "rgb(0, 128, 255)"; // Light blue for shallow rivers
-      }
-    } else if (cell.type === "mud" && settings.showMoisture) {
-      // Dark brown for mud (high moisture) with gradient based on altitude
-      const normalizedValue = (cell.altitude + 200) / 2400;
-
-      // Create a stronger color gradient for mud based on altitude
-      // Higher altitude mud is darker, lower altitude mud is lighter
-      const baseR = 120; // Base dark brown color components
-      const baseG = 60;
-      const baseB = 0;
-
-      // Calculate how much to darken based on altitude
-      // We want higher altitudes to be darker (subtract from base color)
-      const darkenFactor = normalizedValue * settings.exaggerateHeight;
-
-      // Apply darkening based on height - higher = darker
-      const r = Math.max(40, Math.floor(baseR - darkenFactor * 80));
-      const g = Math.max(20, Math.floor(baseG - darkenFactor * 40));
-      const b = 0; // Keep blue at 0 for brown
-
-      return `rgb(${r}, ${g}, ${b})`;
-    } else if (cell.type === "earth" && settings.showMoisture) {
-      // Medium brown for earth (medium moisture) with gradient based on altitude
-      const normalizedValue = (cell.altitude + 200) / 2400;
-
-      // Create a stronger color gradient for earth based on altitude
-      // Higher altitude earth is darker, lower altitude earth is lighter
-      const baseR = 180; // Base medium brown color components
-      const baseG = 120;
-      const baseB = 60;
-
-      // Calculate how much to darken based on altitude
-      // We want higher altitudes to be darker (subtract from base color)
-      const darkenFactor = normalizedValue * settings.exaggerateHeight;
-
-      // Apply darkening based on height - higher = darker
-      const r = Math.max(25, Math.floor(baseR - darkenFactor * 185));
-      const g = Math.max(10, Math.floor(baseG - darkenFactor * 140));
-      const b = Math.max(7, Math.floor(baseB - darkenFactor * 83));
-
-      return `rgb(${r}, ${g}, ${b})`;
-    } else if (settings.showElevation) {
-      // Map altitude to grayscale (0-255)
-      // Map from [-200,2200] to [0,255]
-      const normalizedValue = (cell.altitude + 200) / 2400;
-      // Apply height exaggeration
-      const adjustedValue = Math.min(
-        1,
-        normalizedValue * settings.exaggerateHeight,
-      );
-      // Inverse the value (255-value) to make high values darker
-      const value = Math.floor(255 - adjustedValue * 255);
-      return `rgb(${value},${value},${value})`;
-    } else {
-      // Fallback color - subtle gray
-      return "rgb(200,200,200)";
-    }
-  };
-
-  // Draw the terrain grid
   useEffect(() => {
     if (!canvasRef.current || !terrainGrid.length) return;
 
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvasRef.current.getContext("2d");
     if (!ctx) return;
 
-    const gridSize = terrainGrid.length;
-
-    // Apply zoom and pan transformations
-    const zoomLevel = settings.zoomLevel || 1.0;
-    const panOffset = settings.panOffset || { x: 0, y: 0 };
-
-    // Calculate cell dimensions with zoom applied
-    const cellWidth = (width / gridSize) * zoomLevel;
-    const cellHeight = (height / gridSize) * zoomLevel;
-
-    // Calculate the total world size in pixels
-    const worldWidth = gridSize * cellWidth;
-    const worldHeight = gridSize * cellHeight;
-
-    // Normalize pan offset to wrap around the world (modulo operation)
-    const normalizedPanX = ((panOffset.x % worldWidth) + worldWidth) % worldWidth;
-    const normalizedPanY = ((panOffset.y % worldHeight) + worldHeight) % worldHeight;
-
-    // Clear the canvas
     ctx.clearRect(0, 0, width, height);
-
-    // Save the context state before applying transformations
     ctx.save();
 
-    // Calculate which cells are visible in the viewport with wrapping
-    // We need to render enough to fill the screen, potentially drawing the world multiple times
-    const startX = Math.floor(-normalizedPanX / cellWidth);
-    const startY = Math.floor(-normalizedPanY / cellHeight);
-    const endX = Math.ceil((width - normalizedPanX) / cellWidth);
-    const endY = Math.ceil((height - normalizedPanY) / cellHeight);
+    rendererRef.current?.render(
+      ctx,
+      terrainGrid,
+      settings,
+      width,
+      height,
+      selectedCell,
+      hoveredCell,
+    );
 
-    // Skip rendering if cells are too small (less than 0.5 pixels)
-    const shouldRenderDetails = cellWidth >= 0.5 && cellHeight >= 0.5;
-
-    // Render cells with wrapping
-    for (let y = startY; y < endY; y++) {
-      for (let x = startX; x < endX; x++) {
-        // Wrap coordinates to get the actual cell from the terrain grid
-        const wrappedX = ((x % gridSize) + gridSize) % gridSize;
-        const wrappedY = ((y % gridSize) + gridSize) % gridSize;
-
-        const cell = terrainGrid[wrappedY]?.[wrappedX];
-        if (!cell) continue;
-
-        // Get cell color based on visualization settings
-        const color = getCellColor(cell);
-
-        // Only change fillStyle if color changed (reduces GPU calls)
-        if (ctx.fillStyle !== color) {
-          ctx.fillStyle = color;
-        }
-
-        // Draw cell with zoom and pan applied
-        ctx.fillRect(
-          x * cellWidth + normalizedPanX,
-          y * cellHeight + normalizedPanY,
-          Math.ceil(cellWidth + 1), // Add 1 to prevent gaps
-          Math.ceil(cellHeight + 1),
-        );
-
-        // Draw connected river segments for clearer stream tracking (only if cells are large enough)
-        if (
-          shouldRenderDetails &&
-          settings.showRivers &&
-          (cell.type === "river" || cell.type === "spring") &&
-          cell.river_name
-        ) {
-          const drawRiverSegment = (
-            neighborX: number,
-            neighborY: number,
-            screenNeighborX: number,
-            screenNeighborY: number,
-          ) => {
-            const neighborCell = terrainGrid[neighborY][neighborX];
-            if (
-              !neighborCell ||
-              (neighborCell.type !== "river" && neighborCell.type !== "spring") ||
-              neighborCell.river_name !== cell.river_name
-            ) {
-              return;
-            }
-
-            const baseWidth = Math.max(1, Math.min(3, cell.water_height || 1));
-            const lineWidth =
-              Math.max(1, Math.min(cellWidth, cellHeight) * 0.15) * baseWidth;
-
-            ctx.strokeStyle = cell.water_height >= 2
-              ? "rgba(0, 64, 192, 0.9)"
-              : "rgba(0, 128, 255, 0.9)";
-            ctx.lineWidth = lineWidth;
-            ctx.lineCap = "round";
-
-            ctx.beginPath();
-            ctx.moveTo(
-              x * cellWidth + normalizedPanX + cellWidth / 2,
-              y * cellHeight + normalizedPanY + cellHeight / 2,
-            );
-            ctx.lineTo(
-              screenNeighborX + cellWidth / 2,
-              screenNeighborY + cellHeight / 2,
-            );
-            ctx.stroke();
-          };
-
-          const wrappedRightX = (wrappedX + 1) % gridSize;
-          const wrappedDownY = (wrappedY + 1) % gridSize;
-
-          drawRiverSegment(
-            wrappedRightX,
-            wrappedY,
-            (x + 1) * cellWidth + normalizedPanX,
-            y * cellHeight + normalizedPanY,
-          );
-
-          drawRiverSegment(
-            wrappedX,
-            wrappedDownY,
-            x * cellWidth + normalizedPanX,
-            (y + 1) * cellHeight + normalizedPanY,
-          );
-        }
-
-        // Draw contour lines if enabled (only if cells are large enough)
-        if (shouldRenderDetails && settings.contourLines && settings.showElevation) {
-          // Get the altitude adjusted with the contour interval
-          const altitude = cell.altitude;
-          const interval = settings.contourInterval;
-
-          // Check if this cell is on a contour line
-          if (
-            Math.round(altitude / interval) * interval ===
-            Math.round(altitude)
-          ) {
-            ctx.strokeStyle = "rgba(0,0,0,0.5)";
-            ctx.lineWidth = 0.5;
-            ctx.strokeRect(
-              x * cellWidth + normalizedPanX,
-              y * cellHeight + normalizedPanY,
-              cellWidth,
-              cellHeight,
-            );
-          }
-        }
-
-        // Draw wireframe if enabled (only if cells are large enough)
-        if (shouldRenderDetails && settings.wireframe) {
-          ctx.strokeStyle = "rgba(0,0,0,0.2)";
-          ctx.lineWidth = 0.5;
-          ctx.strokeRect(
-            x * cellWidth + normalizedPanX,
-            y * cellHeight + normalizedPanY,
-            cellWidth,
-            cellHeight
-          );
-        }
-
-        // Draw wind arrows if in wind mode (only if cells are large enough)
-        if (shouldRenderDetails && settings.colorMode === "wind" && cellWidth >= 8 && cellHeight >= 8) {
-          const windSpeed = cell.wind_speed ?? 0;
-          const windDirection = cell.wind_direction ?? 0;
-
-          if (windSpeed > 0.1) {
-            const centerX = x * cellWidth + normalizedPanX + cellWidth / 2;
-            const centerY = y * cellHeight + normalizedPanY + cellHeight / 2;
-
-            // Arrow size based on wind speed (5-15 m/s maps to 30%-90% of cell size)
-            const maxWindSpeed = 15;
-            const normalizedSpeed = Math.min(1, windSpeed / maxWindSpeed);
-            const arrowLength = Math.min(cellWidth, cellHeight) * (0.3 + normalizedSpeed * 0.6) * 0.45;
-
-            // Convert wind direction (0° = North, clockwise) to canvas angle
-            const angleRad = (windDirection - 90) * (Math.PI / 180);
-
-            // Calculate arrow endpoints
-            const tipX = centerX + Math.cos(angleRad) * arrowLength;
-            const tipY = centerY + Math.sin(angleRad) * arrowLength;
-            const tailX = centerX - Math.cos(angleRad) * arrowLength * 0.3;
-            const tailY = centerY - Math.sin(angleRad) * arrowLength * 0.3;
-
-            // Arrow head size
-            const headLength = arrowLength * 0.4;
-            const headAngle = Math.PI / 6; // 30 degrees
-
-            // Draw arrow shaft
-            ctx.strokeStyle = "rgba(40, 40, 40, 0.8)";
-            ctx.lineWidth = Math.max(1, cellWidth * 0.08);
-            ctx.lineCap = "round";
-            ctx.beginPath();
-            ctx.moveTo(tailX, tailY);
-            ctx.lineTo(tipX, tipY);
-            ctx.stroke();
-
-            // Draw arrow head
-            ctx.beginPath();
-            ctx.moveTo(tipX, tipY);
-            ctx.lineTo(
-              tipX - headLength * Math.cos(angleRad - headAngle),
-              tipY - headLength * Math.sin(angleRad - headAngle)
-            );
-            ctx.moveTo(tipX, tipY);
-            ctx.lineTo(
-              tipX - headLength * Math.cos(angleRad + headAngle),
-              tipY - headLength * Math.sin(angleRad + headAngle)
-            );
-            ctx.stroke();
-          }
-        }
-
-        // Highlight the selected cell with a golden border (check wrapped coordinates)
-        if (selectedCell && selectedCell.x === wrappedX && selectedCell.y === wrappedY) {
-          ctx.strokeStyle = "gold";
-          ctx.lineWidth = 3;
-          ctx.strokeRect(
-            x * cellWidth + normalizedPanX,
-            y * cellHeight + normalizedPanY,
-            cellWidth,
-            cellHeight
-          );
-        }
-
-        // Highlight the hovered cell with a white border (check wrapped coordinates)
-        if (hoveredCell && hoveredCell.x === wrappedX && hoveredCell.y === wrappedY) {
-          ctx.strokeStyle = "white";
-          ctx.lineWidth = 2;
-          ctx.strokeRect(
-            x * cellWidth + normalizedPanX,
-            y * cellHeight + normalizedPanY,
-            cellWidth,
-            cellHeight
-          );
-        }
-      }
-    }
-
-    // Restore the context state
     ctx.restore();
-  }, [terrainGrid, width, height, hoveredCell, selectedCell, settings.zoomLevel, settings.panOffset, settings.showRivers, settings.showMoisture, settings.showElevation, settings.exaggerateHeight, settings.contourLines, settings.contourInterval, settings.colorMode, settings.wireframe]);
+  }, [
+    terrainGrid,
+    width,
+    height,
+    hoveredCell,
+    selectedCell,
+    settings,
+  ]);
 
-  // Draw the minimap (optimized - terrain renders every 10 minutes, viewport indicator updates in real-time)
   useEffect(() => {
     if (!minimapRef.current || !terrainGrid.length) return;
 
-    const minimap = minimapRef.current;
-    const ctx = minimap.getContext("2d");
+    const ctx = minimapRef.current.getContext("2d");
     if (!ctx) return;
 
-    const minimapSize = 150;
-    const gridSize = terrainGrid.length;
-    const cellSize = minimapSize / gridSize;
-    const now = Date.now();
-    const colorModeChanged = lastMinimapColorModeRef.current !== settings.colorMode;
-    const shouldRenderTerrain =
-      !minimapCacheRef.current ||
-      colorModeChanged ||
-      (now - lastMinimapRenderRef.current) > MINIMAP_REFRESH_INTERVAL;
+    const renderer = rendererRef.current;
+    if (!renderer) return;
 
-    // Render terrain to cache if needed (expensive operation - only every 10 minutes)
-    if (shouldRenderTerrain) {
-      console.log("Rendering minimap terrain (next update in 10 minutes)...");
-      ctx.clearRect(0, 0, minimapSize, minimapSize);
-
-      for (let y = 0; y < gridSize; y++) {
-        for (let x = 0; x < gridSize; x++) {
-          const cell = terrainGrid[y]?.[x];
-          if (!cell) continue;
-          ctx.fillStyle = getCellColor(cell);
-          ctx.fillRect(x * cellSize, y * cellSize, cellSize + 1, cellSize + 1);
-        }
-      }
-
-      minimapCacheRef.current = ctx.getImageData(0, 0, minimapSize, minimapSize);
-      lastMinimapRenderRef.current = now;
-      lastMinimapColorModeRef.current = settings.colorMode;
-    } else if (minimapCacheRef.current) {
-      ctx.putImageData(minimapCacheRef.current, 0, 0);
-    }
-
-    // Draw viewport indicator (cheap - runs every time)
-    const zoomLevel = settings.zoomLevel || 1.0;
-    const panOffset = settings.panOffset || { x: 0, y: 0 };
-    const cellWidth = (width / gridSize) * zoomLevel;
-    const cellHeight = (height / gridSize) * zoomLevel;
-    const worldWidth = gridSize * cellWidth;
-    const worldHeight = gridSize * cellHeight;
-    const normalizedPanX = ((panOffset.x % worldWidth) + worldWidth) % worldWidth;
-    const normalizedPanY = ((panOffset.y % worldHeight) + worldHeight) % worldHeight;
-    const viewportStartX = (-normalizedPanX / cellWidth) % gridSize;
-    const viewportStartY = (-normalizedPanY / cellHeight) % gridSize;
-    const viewportWidth = width / cellWidth;
-    const viewportHeight = height / cellHeight;
-    const normalizedStartX = ((viewportStartX % gridSize) + gridSize) % gridSize;
-    const normalizedStartY = ((viewportStartY % gridSize) + gridSize) % gridSize;
-
-    ctx.strokeStyle = "rgba(255, 215, 0, 0.9)";
-    ctx.lineWidth = 2;
-
-    const wrapsX = normalizedStartX + viewportWidth > gridSize;
-    const wrapsY = normalizedStartY + viewportHeight > gridSize;
-
-    if (!wrapsX && !wrapsY) {
-      ctx.strokeRect(normalizedStartX * cellSize, normalizedStartY * cellSize, viewportWidth * cellSize, viewportHeight * cellSize);
-    } else if (wrapsX && !wrapsY) {
-      const rightWidth = gridSize - normalizedStartX;
-      const leftWidth = viewportWidth - rightWidth;
-      ctx.strokeRect(normalizedStartX * cellSize, normalizedStartY * cellSize, rightWidth * cellSize, viewportHeight * cellSize);
-      ctx.strokeRect(0, normalizedStartY * cellSize, leftWidth * cellSize, viewportHeight * cellSize);
-    } else if (!wrapsX && wrapsY) {
-      const bottomHeight = gridSize - normalizedStartY;
-      const topHeight = viewportHeight - bottomHeight;
-      ctx.strokeRect(normalizedStartX * cellSize, normalizedStartY * cellSize, viewportWidth * cellSize, bottomHeight * cellSize);
-      ctx.strokeRect(normalizedStartX * cellSize, 0, viewportWidth * cellSize, topHeight * cellSize);
-    } else {
-      const rightWidth = gridSize - normalizedStartX;
-      const leftWidth = viewportWidth - rightWidth;
-      const bottomHeight = gridSize - normalizedStartY;
-      const topHeight = viewportHeight - bottomHeight;
-      ctx.strokeRect(normalizedStartX * cellSize, normalizedStartY * cellSize, rightWidth * cellSize, bottomHeight * cellSize);
-      ctx.strokeRect(0, normalizedStartY * cellSize, leftWidth * cellSize, bottomHeight * cellSize);
-      ctx.strokeRect(normalizedStartX * cellSize, 0, rightWidth * cellSize, topHeight * cellSize);
-      ctx.strokeRect(0, 0, leftWidth * cellSize, topHeight * cellSize);
-    }
-  }, [terrainGrid, width, height, settings.zoomLevel, settings.panOffset, settings.colorMode]);
-
-  // Mouse move handler to determine hovered cell
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!canvasRef.current || !terrainGrid.length) return;
-
-    // Get canvas position and mouse coordinates
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-
-    setMousePosition({ x: e.clientX, y: e.clientY });
-
-    // Apply zoom and pan transformations
-    const zoomLevel = settings.zoomLevel || 1.0;
-    const panOffset = settings.panOffset || { x: 0, y: 0 };
-
-    // Calculate cell coordinates accounting for zoom and pan
-    const gridSize = terrainGrid.length;
-    const cellWidth = (width / gridSize) * zoomLevel;
-    const cellHeight = (height / gridSize) * zoomLevel;
-
-    // Calculate the total world size in pixels
-    const worldWidth = gridSize * cellWidth;
-    const worldHeight = gridSize * cellHeight;
-
-    // Normalize pan offset to wrap around the world
-    const normalizedPanX = ((panOffset.x % worldWidth) + worldWidth) % worldWidth;
-    const normalizedPanY = ((panOffset.y % worldHeight) + worldHeight) % worldHeight;
-
-    // Adjust mouse coordinates for zoom and pan with wrapping
-    const adjustedMouseX = mouseX - normalizedPanX;
-    const adjustedMouseY = mouseY - normalizedPanY;
-
-    // Calculate cell coordinates
-    const rawCellX = Math.floor(adjustedMouseX / cellWidth);
-    const rawCellY = Math.floor(adjustedMouseY / cellHeight);
-
-    // Wrap cell coordinates to grid bounds
-    const cellX = ((rawCellX % gridSize) + gridSize) % gridSize;
-    const cellY = ((rawCellY % gridSize) + gridSize) % gridSize;
-
-    const cell = terrainGrid[cellY][cellX];
-    if (cell) {
-      setHoveredCell({
-        cell,
-        x: cellX,
-        y: cellY,
-        screenX: mouseX,
-        screenY: mouseY,
-      });
-    } else {
-      setHoveredCell(null);
-    }
-  };
-
-  const handleMouseLeave = () => {
-    setHoveredCell(null);
-  };
-
-
-  // Mouse down handler for panning
-  const [isPanning, setIsPanning] = useState(false);
-  const [lastPanPosition, setLastPanPosition] = useState({ x: 0, y: 0 });
-  const panAccumulatorRef = useRef({ x: 0, y: 0 });
-  const rafIdRef = useRef<number | null>(null);
-
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    // Only initiate pan with middle mouse button (button 1) or right click (button 2)
-    if (e.button === 1 || e.button === 2) {
-      e.preventDefault();
-      setIsPanning(true);
-      setLastPanPosition({ x: e.clientX, y: e.clientY });
-      panAccumulatorRef.current = { x: 0, y: 0 };
-    }
-  };
-
-  const handleMouseUp = () => {
-    setIsPanning(false);
-    if (rafIdRef.current !== null) {
-      cancelAnimationFrame(rafIdRef.current);
-      rafIdRef.current = null;
-    }
-  };
-
-  // Update pan position on mouse move while panning
-  useEffect(() => {
-    const handlePanMove = (e: MouseEvent) => {
-      if (!isPanning) return;
-
-      const dx = e.clientX - lastPanPosition.x;
-      const dy = e.clientY - lastPanPosition.y;
-
-      // Accumulate pan delta
-      panAccumulatorRef.current.x += dx;
-      panAccumulatorRef.current.y += dy;
-
-      setLastPanPosition({ x: e.clientX, y: e.clientY });
-
-      // Throttle updates using requestAnimationFrame
-      if (rafIdRef.current === null) {
-        rafIdRef.current = requestAnimationFrame(() => {
-          const currentPan = settings.panOffset || { x: 0, y: 0 };
-          const newPan = {
-            x: currentPan.x + panAccumulatorRef.current.x,
-            y: currentPan.y + panAccumulatorRef.current.y,
-          };
-
-          panAccumulatorRef.current = { x: 0, y: 0 };
-          rafIdRef.current = null;
-
-          if (onVisualizationSettingsChange) {
-            onVisualizationSettingsChange({
-              ...settings,
-              panOffset: newPan,
-            });
-          }
-        });
-      }
-    };
-
-    // Add global mouse event listeners for panning
-    if (isPanning) {
-      window.addEventListener("mousemove", handlePanMove);
-      window.addEventListener("mouseup", handleMouseUp);
-    }
-
-    return () => {
-      window.removeEventListener("mousemove", handlePanMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [isPanning, lastPanPosition, settings, onVisualizationSettingsChange]);
-
-  // Mouse click handler to select a cell
-  const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    // Skip if right button or middle button (used for panning)
-    if (e.button !== 0 || !canvasRef.current || !terrainGrid.length) return;
-
-    // Get canvas position and mouse coordinates
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-
-    // Apply zoom and pan transformations
-    const zoomLevel = settings.zoomLevel || 1.0;
-    const panOffset = settings.panOffset || { x: 0, y: 0 };
-
-    // Calculate cell coordinates accounting for zoom and pan
-    const gridSize = terrainGrid.length;
-    const cellWidth = (width / gridSize) * zoomLevel;
-    const cellHeight = (height / gridSize) * zoomLevel;
-
-    // Calculate the total world size in pixels
-    const worldWidth = gridSize * cellWidth;
-    const worldHeight = gridSize * cellHeight;
-
-    // Normalize pan offset to wrap around the world
-    const normalizedPanX = ((panOffset.x % worldWidth) + worldWidth) % worldWidth;
-    const normalizedPanY = ((panOffset.y % worldHeight) + worldHeight) % worldHeight;
-
-    // Adjust mouse coordinates for zoom and pan with wrapping
-    const adjustedMouseX = mouseX - normalizedPanX;
-    const adjustedMouseY = mouseY - normalizedPanY;
-
-    // Calculate cell coordinates
-    const rawCellX = Math.floor(adjustedMouseX / cellWidth);
-    const rawCellY = Math.floor(adjustedMouseY / cellHeight);
-
-    // Wrap cell coordinates to grid bounds
-    const cellX = ((rawCellX % gridSize) + gridSize) % gridSize;
-    const cellY = ((rawCellY % gridSize) + gridSize) % gridSize;
-
-    const cell = terrainGrid[cellY][cellX];
-    if (cell) {
-      const cellInfo = {
-        cell,
-        x: cellX,
-        y: cellY,
-        screenX: mouseX,
-        screenY: mouseY,
-      };
-
-      // Toggle selection - if clicking on the same cell, deselect it
-      if (
-        selectedCell &&
-        selectedCell.x === cellX &&
-        selectedCell.y === cellY
-      ) {
-        setSelectedCell(null);
-        // Notify parent component if callback is provided
-        if (onCellSelect) onCellSelect(null);
-      } else {
-        setSelectedCell(cellInfo);
-        // Notify parent component if callback is provided
-        if (onCellSelect) onCellSelect(cellInfo);
-      }
-    }
-  };
+    minimapRendererRef.current?.render(
+      ctx,
+      terrainGrid,
+      settings,
+      width,
+      height,
+      renderer.getCellColor.bind(renderer),
+    );
+  }, [terrainGrid, width, height, settings]);
 
   return (
     <div className="relative">
@@ -942,7 +255,7 @@ export function TerrainCanvas({
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
         onMouseDown={handleMouseDown}
-        onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right click
+        onContextMenu={(event) => event.preventDefault()}
       />
 
       {isLoading && (
@@ -951,7 +264,6 @@ export function TerrainCanvas({
         </div>
       )}
 
-      {/* Minimap */}
       <div className="absolute bottom-4 right-4 border-2 border-gold rounded-lg shadow-lg bg-black/50 backdrop-blur-sm">
         <canvas
           ref={minimapRef}
@@ -961,7 +273,6 @@ export function TerrainCanvas({
         />
       </div>
 
-      {/* Cell information popup */}
       {hoveredCell && (
         <div
           className="absolute z-10 bg-black/80 text-white p-3 rounded-md text-sm shadow-lg"
@@ -979,7 +290,10 @@ export function TerrainCanvas({
           </div>
           {hoveredCell.cell.river_name && (
             <div>
-              River: <span className="font-medium text-blue-300">🌊 {hoveredCell.cell.river_name}</span>
+              River:{" "}
+              <span className="font-medium text-blue-300">
+                🌊 {hoveredCell.cell.river_name}
+              </span>
             </div>
           )}
           <div>
