@@ -11,6 +11,7 @@ import { EvaporationSystem } from "./EvaporationSystem";
 import { HumiditySystem } from "./HumiditySystem";
 import { CondensationSystem } from "./CondensationSystem";
 import { MoistureSystem } from "./MoistureSystem";
+import { GrassSystem } from "./GrassSystem";
 import { PERFORMANCE_CONFIG } from "../config";
 
 /**
@@ -27,6 +28,7 @@ import { PERFORMANCE_CONFIG } from "../config";
  * 8. Humidity - adjusts for temperature changes and diffuses
  * 9. Condensation - oversaturated air → ground moisture
  * 10. Moisture - ground moisture propagation from water sources
+ * 11. Grass - growth, dormancy, and spreading
  */
 export class SimulationEngine {
     private temperatureSystem: TemperatureSystem;
@@ -39,6 +41,7 @@ export class SimulationEngine {
     private humiditySystem: HumiditySystem;
     private condensationSystem: CondensationSystem;
     private moistureSystem: MoistureSystem;
+    private grassSystem: GrassSystem;
 
     constructor() {
         this.temperatureSystem = new TemperatureSystem();
@@ -51,6 +54,7 @@ export class SimulationEngine {
         this.humiditySystem = new HumiditySystem();
         this.condensationSystem = new CondensationSystem();
         this.moistureSystem = new MoistureSystem();
+        this.grassSystem = new GrassSystem();
     }
 
     /**
@@ -116,6 +120,11 @@ export class SimulationEngine {
         if (shouldLog) console.time("Moisture");
         this.moistureSystem.update(terrain, gameTime);
         if (shouldLog) console.timeEnd("Moisture");
+
+        // 11. Grass growth and spreading
+        if (shouldLog) console.time("Grass");
+        this.grassSystem.update(terrain, gameTime);
+        if (shouldLog) console.timeEnd("Grass");
 
         if (shouldLog) {
             const totalTime = Date.now() - startTime;
