@@ -212,7 +212,7 @@ export const PERFORMANCE_CONFIG = {
     MIN_HUMIDITY_THRESHOLD: 0.01,       // Skip below this
 
     // General
-    ENABLE_PERFORMANCE_LOGGING: true,
+    ENABLE_PERFORMANCE_LOGGING: process.env.ENABLE_PERFORMANCE_LOGGING === 'true',
     TICK_TIME_WARNING_MS: 5000,
 };
 

@@ -224,7 +224,6 @@ export class WorldGenerator {
                 const mappedHeight = this.mapHeight(noiseVal);
 
                 const cell: TerrainCell = {
-                    id: y * gridSize + x,
                     x,
                     y,
                     terrain_height: mappedHeight,
@@ -239,15 +238,15 @@ export class WorldGenerator {
                     precipitation_rate: 0,
                     ground_wetness: 0,
                     grass_density: 0,
-                    grass_type: null,
+                    grass_type: undefined,
                     grass_health: 0,
                     grass_dormant: 0,
-                    atmospheric_pressure: null,
-                    wind_speed: null,
-                    wind_direction: null,
+                    atmospheric_pressure: undefined,
+                    wind_speed: undefined,
+                    wind_direction: undefined,
                     type: "rock",
                     distance_from_water: Infinity,
-                    river_name: null,
+                    river_name: undefined,
                 };
 
                 terrain[y][x] = cell;

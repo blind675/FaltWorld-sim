@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { storage } from "./storage";
@@ -19,7 +20,7 @@ app.use((req, res, next) => {
   const allowedOrigins = [
     "http://localhost:3000",  // Next.js dev server
     "http://localhost:3001",  // Alternative Next.js port
-    process.env.FRONTEND_URL, // Production frontend URL
+    process.env.FRONTEND_URL, // Production frontend URL from .env
   ].filter(Boolean);
 
   const origin = req.headers.origin;
@@ -43,8 +44,13 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // Set up periodic task
-export const INTERVAL = 1000 * 60; // 60 second in milliseconds (update interval)
+export const INTERVAL = process.env.SIMULATION_INTERVAL
+  ? parseInt(process.env.SIMULATION_INTERVAL, 10)
+  : 1000 * 60; // 60 seconds in milliseconds (update interval)
 let intervalId: NodeJS.Timeout;
+let isTickRunning = false;
+let lastTickTime: Date | null = null;
+let lastTickError: Error | null = null;
 
 function startPeriodicTask() {
   // Clear any existing interval
@@ -54,13 +60,58 @@ function startPeriodicTask() {
 
   // Set up new interval
   intervalId = setInterval(async () => {
+    // Prevent overlapping ticks
+    if (isTickRunning) {
+      log("⚠️  Skipping tick - previous tick still running", "simulation");
+      return;
+    }
+
+    isTickRunning = true;
     try {
-      log("Running periodic terrain update");
+      log("Running periodic terrain update", "simulation");
       storage.landUpdate();
+      lastTickTime = new Date();
+      lastTickError = null;
     } catch (error) {
+      lastTickError = error as Error;
       console.error("Error in periodic task:", error);
+    } finally {
+      isTickRunning = false;
     }
   }, INTERVAL);
+}
+
+function stopPeriodicTask() {
+  if (intervalId) {
+    clearInterval(intervalId);
+    log("Periodic task stopped", "simulation");
+  }
+}
+
+// Graceful shutdown handling
+process.on("SIGTERM", () => {
+  log("SIGTERM received, shutting down gracefully...", "system");
+  stopPeriodicTask();
+  process.exit(0);
+});
+
+process.on("SIGINT", () => {
+  log("SIGINT received, shutting down gracefully...", "system");
+  stopPeriodicTask();
+  process.exit(0);
+});
+
+// Export health check data
+export function getHealthStatus() {
+  return {
+    isTickRunning,
+    lastTickTime,
+    lastTickError: lastTickError ? {
+      message: lastTickError.message,
+      stack: lastTickError.stack,
+    } : null,
+    uptimeSeconds: process.uptime(),
+  };
 }
 
 app.use((req, res, next) => {
@@ -98,7 +149,7 @@ app.use((req, res, next) => {
   // Start periodic task after server is ready
   startPeriodicTask();
 
-  const PORT = 5001;
+  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 5001;
   server.listen(PORT, "0.0.0.0", () => {
     log(`serving on port ${PORT}`);
   });

@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { INTERVAL } from "./index";
+import { INTERVAL, getHealthStatus } from "./index";
 import { VIEWPORT_CONFIG } from "./config";
 import type { TerrainCell, TerrainGrid } from "./schema";
 
@@ -148,6 +148,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch config" });
+    }
+  });
+
+  app.get("/api/health", async (req, res) => {
+    try {
+      const health = getHealthStatus();
+      const status = health.lastTickError ? 503 : 200;
+
+      res.status(status).json({
+        status: health.lastTickError ? "unhealthy" : "healthy",
+        simulation: {
+          isRunning: health.isTickRunning,
+          lastTickTime: health.lastTickTime,
+          timeSinceLastTick: health.lastTickTime
+            ? Date.now() - health.lastTickTime.getTime()
+            : null,
+          lastError: health.lastTickError,
+        },
+        server: {
+          uptimeSeconds: health.uptimeSeconds,
+          updateInterval: INTERVAL,
+        },
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch health status" });
     }
   });
 
